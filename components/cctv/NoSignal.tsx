@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useTheme } from '@/lib/themeContext'
 
 interface NoSignalProps {
   camId: number
@@ -8,6 +9,7 @@ interface NoSignalProps {
 }
 
 export default function NoSignal({ camId, label }: NoSignalProps) {
+  const { t, palette, settings } = useTheme()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animRef = useRef<number>(0)
 
@@ -90,21 +92,21 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
             fontFamily: 'var(--font-share-tech-mono), monospace',
             fontSize: 'clamp(10px, 2vw, 18px)',
             letterSpacing: '0.2em',
-            color: 'oklch(0.75 0.18 145)',
-            textShadow: '0 0 8px oklch(0.68 0.22 145 / 0.8), 0 0 20px oklch(0.55 0.22 145 / 0.4)',
+            color: palette.primary,
+            textShadow: settings.glow ? palette.textGlow : 'none',
           }}
         >
-          NO SIGNAL
+          {t.noSignal}
         </div>
         <div
           style={{
             fontFamily: 'var(--font-share-tech-mono), monospace',
             fontSize: 'clamp(8px, 1.2vw, 11px)',
             letterSpacing: '0.15em',
-            color: 'oklch(0.45 0.1 145)',
+            color: palette.primaryDim,
           }}
         >
-          CH {String(camId).padStart(2, '0')} — SEARCHING...
+          CH {String(camId).padStart(2, '0')} — {t.searching}
         </div>
         {/* Animated bars */}
         <div className="flex gap-1 mt-1">
@@ -114,7 +116,7 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
               style={{
                 width: 3,
                 height: 12,
-                background: 'oklch(0.4 0.1 145)',
+                background: palette.primaryDim,
                 animation: `blink ${0.5 + i * 0.15}s step-end infinite`,
               }}
             />

@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from 'react'
 import CCTVGrid from '@/components/cctv/CCTVGrid'
 import CCTVHeader from '@/components/cctv/CCTVHeader'
 import ControlPanel from '@/components/cctv/ControlPanel'
+import ThemeSettingsPanel from '@/components/cctv/ThemeSettingsPanel'
+import { useTheme } from '@/lib/themeContext'
 import type { GridConfig } from '@/components/cctv/CCTVGrid'
 
 function getAutoGrid(count: number): { cols: number; rows: number } {
@@ -19,7 +21,9 @@ function getAutoGrid(count: number): { cols: number; rows: number } {
 const DEFAULT_GRID: GridConfig = { layout: '2x2', cols: 2, rows: 2 }
 
 export default function CctvPage() {
+  const { settings, t, palette } = useTheme()
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [gridConfig, setGridConfig] = useState<GridConfig>(DEFAULT_GRID)
   const [folderVideos, setFolderVideos] = useState<File[]>([])
 
@@ -109,7 +113,27 @@ export default function CctvPage() {
         onFullscreenToggle={handleFullscreenToggle}
         cameraCount={cameraCount}
         activeCount={activeCount}
+        onSettingsToggle={() => setShowSettings((s) => !s)}
+        settingsOpen={showSettings}
       />
+
+      {/* Settings panel — slide in from right, hidden in fullscreen */}
+      {showSettings && !isFullscreen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: 320,
+            zIndex: 300,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <ThemeSettingsPanel onClose={() => setShowSettings(false)} />
+        </div>
+      )}
 
       {/* Camera grid — fills all remaining space */}
       <div className="flex-1 min-h-0 overflow-hidden">

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import NoSignal from './NoSignal'
 import TimestampOverlay from './TimestampOverlay'
+import { useTheme } from '@/lib/themeContext'
 
 export type AspectRatioOption = '16/9' | '4/3' | '1/1' | '3/2' | '9/16' | 'auto'
 
@@ -36,6 +37,7 @@ const AR_MAP: Record<AspectRatioOption, [number, number] | null> = {
 }
 
 export default function VideoCell({ config, isFullscreen, onConfigChange }: VideoCellProps) {
+  const { settings } = useTheme()
   const videoRef = useRef<HTMLVideoElement>(null)
   const cellRef = useRef<HTMLDivElement>(null)
   const [loaded, setLoaded] = useState(false)
@@ -204,16 +206,18 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
         {/* CRT effects layer — always inside the inner box */}
         <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
           {/* Interlaced scanlines */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.13) 2px, rgba(0,0,0,0.13) 4px)',
-              animation: 'interlace 0.1s infinite',
-            }}
-          />
+          {settings.scanlines && (
+            <div
+              className="absolute inset-0"
+              style={{
+                background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.13) 2px, rgba(0,0,0,0.13) 4px)',
+                animation: settings.flicker ? 'interlace 0.1s infinite' : 'none',
+              }}
+            />
+          )}
 
           {/* Noise */}
-          {config.noiseIntensity > 0 && (
+          {settings.noise && config.noiseIntensity > 0 && (
             <div
               className="noise-overlay"
               style={{ opacity: (config.noiseIntensity / 100) * 0.14 }}
@@ -221,13 +225,15 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
           )}
 
           {/* Vignette */}
-          <div
-            className="absolute inset-0"
-            style={{ background: 'radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.72) 100%)' }}
-          />
+          {settings.vignette && (
+            <div
+              className="absolute inset-0"
+              style={{ background: 'radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.72) 100%)' }}
+            />
+          )}
 
           {/* Glitch artifact */}
-          {glitchActive && (
+          {glitchActive && settings.flicker && (
             <div className="absolute inset-0" style={glitchStyle} />
           )}
 
@@ -246,11 +252,11 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
           />
 
           {/* Glitch bar */}
-          <div className="glitch-bar" />
+          {settings.flicker && <div className="glitch-bar" />}
         </div>
 
-        {/* Timestamps — only when loaded */}
-        {hasVideo && loaded && (
+        {/* Timestamps — only when loaded and enabled */}
+        {hasVideo && loaded && settings.timestampVisible && (
           <TimestampOverlay
             camId={config.id}
             label={config.label}

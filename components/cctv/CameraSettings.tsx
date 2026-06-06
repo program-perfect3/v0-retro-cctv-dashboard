@@ -2,6 +2,7 @@
 
 import { useRef } from 'react'
 import type { CameraConfig, AspectRatioOption } from './VideoCell'
+import { useTheme } from '@/lib/themeContext'
 
 interface CameraSettingsProps {
   config: CameraConfig
@@ -19,6 +20,7 @@ const ASPECT_OPTIONS: { value: AspectRatioOption; label: string }[] = [
 ]
 
 export default function CameraSettings({ config, onChange, onClose }: CameraSettingsProps) {
+  const { t, palette } = useTheme()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,12 +42,12 @@ export default function CameraSettings({ config, onChange, onClose }: CameraSett
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b"
-        style={{ borderColor: 'oklch(0.22 0.05 145)' }}>
+        style={{ borderColor: palette.border }}>
         <span className="crt-text" style={{ fontSize: '11px', letterSpacing: '0.12em' }}>
-          CAM {String(config.id).padStart(2, '0')} CONFIG
+          CAM {String(config.id).padStart(2, '0')} {t.cfg}
         </span>
         <button className="cctv-btn cctv-btn-red" onClick={onClose} style={{ padding: '2px 8px' }}>
-          CLOSE
+          {t.close}
         </button>
       </div>
 

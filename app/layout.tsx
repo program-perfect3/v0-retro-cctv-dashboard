@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Share_Tech_Mono, Geist, Geist_Mono } from 'next/font/google'
+import { ThemeProvider } from '@/lib/themeContext'
 import './globals.css'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
@@ -29,7 +30,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${geistSans.variable} ${geistMono.variable} ${shareTechMono.variable} bg-background`}
     >
       <body className="bg-background text-foreground overflow-hidden">
-        {children}
+        <ThemeProvider>
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )

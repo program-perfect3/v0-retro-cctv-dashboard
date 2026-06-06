@@ -88,6 +88,13 @@
   --sidebar-ring: oklch(0.68 0.18 145);
 }
 
+/* Dynamic CSS vars set by ThemeProvider JS */
+:root {
+  --theme-text-scale: 100%;
+  --grid-gap: 2px;
+  --crt-text-glow: 0 0 6px oklch(0.72 0.22 145 / 0.7), 0 0 14px oklch(0.55 0.22 145 / 0.35);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -95,23 +102,42 @@
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-share-tech-mono), monospace;
+    font-size: var(--theme-text-scale);
   }
   html {
     @apply bg-background;
   }
 }
 
+/* Range input cross-browser thumb */
+input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--primary, oklch(0.68 0.18 145));
+  box-shadow: 0 0 4px var(--primary, oklch(0.68 0.18 145));
+  cursor: pointer;
+  border: none;
+}
+input[type='range']::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 1px;
+  background: var(--primary, oklch(0.68 0.18 145));
+  box-shadow: 0 0 4px var(--primary, oklch(0.68 0.18 145));
+  cursor: pointer;
+  border: none;
+}
+
 /* ============================================================
    RETRO CCTV EFFECTS
    ============================================================ */
 
-/* Phosphor glow text */
+/* Phosphor glow text — colour driven by ThemeProvider CSS vars */
 .crt-text {
-  color: oklch(0.78 0.22 145);
-  text-shadow:
-    0 0 4px oklch(0.78 0.22 145 / 0.9),
-    0 0 10px oklch(0.68 0.22 145 / 0.5),
-    0 0 20px oklch(0.55 0.22 145 / 0.25);
+  color: var(--primary, oklch(0.78 0.22 145));
+  text-shadow: var(--crt-text-glow);
 }
 
 .crt-text-amber {

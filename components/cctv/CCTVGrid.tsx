@@ -20,6 +20,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import VideoCell, { type CameraConfig } from './VideoCell'
 import CameraSettings from './CameraSettings'
+import { useTheme } from '@/lib/themeContext'
 
 const LOCATIONS = [
   'MAIN ENTRANCE', 'PARKING LOT A', 'SERVER ROOM', 'CORRIDOR B-4',
@@ -157,6 +158,7 @@ export default function CCTVGrid({
   globalGridConfig,
   cameraCount,
 }: CCTVGridProps) {
+  const { settings } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [cameras, setCameras] = useState<CameraConfig[]>(() =>
     Array.from({ length: 64 }, (_, i) => makeDefaultCamera(i + 1))
@@ -218,7 +220,7 @@ export default function CCTVGrid({
     display: 'grid',
     gridTemplateColumns: `repeat(${cols}, 1fr)`,
     gridTemplateRows: `repeat(${rows}, 1fr)`,
-    gap: '2px',
+    gap: `${settings.gridGap}px`,
     width: '100%',
     height: '100%',
     background: 'oklch(0.025 0.002 200)',

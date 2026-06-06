@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import type { GridLayout, GridConfig } from './CCTVGrid'
+import { useTheme } from '@/lib/themeContext'
 // GridConfig is re-exported for page-level consumption
 export type { GridConfig }
 
@@ -33,6 +34,7 @@ export default function ControlPanel({
   onFolderLoad,
   cameraCount,
 }: ControlPanelProps) {
+  const { t, palette } = useTheme()
   const folderInputRef = useRef<HTMLInputElement>(null)
   const [folderPath, setFolderPath] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -104,10 +106,10 @@ export default function ControlPanel({
       >
         <div className="flex items-center gap-3">
           <span className="crt-text" style={{ fontSize: '9px', letterSpacing: '0.18em' }}>
-            DVR CONTROL PANEL
+            {t.panelTitle}
           </span>
-          <span style={{ fontSize: '8px', color: 'oklch(0.35 0.07 145)', letterSpacing: '0.1em' }}>
-            v2.1.4
+          <span style={{ fontSize: '8px', color: palette.primaryDim, letterSpacing: '0.1em' }}>
+            {t.panelVer}
           </span>
         </div>
         <div className="flex items-center gap-4">
@@ -134,7 +136,7 @@ export default function ControlPanel({
         >
           {/* === GRID LAYOUT === */}
           <div className="flex flex-col gap-1.5 min-w-[200px]">
-            <div className="panel-section-title">GRID LAYOUT</div>
+            <div className="panel-section-title">{t.gridLayout}</div>
             <div className="flex flex-wrap gap-1">
               {GRID_PRESETS.map((preset) => (
                 <button
@@ -156,8 +158,8 @@ export default function ControlPanel({
 
             {/* Custom grid input */}
             <div className="flex items-center gap-1 mt-0.5">
-              <span style={{ fontSize: '8px', color: 'oklch(0.42 0.08 145)', letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
-                CUSTOM:
+              <span style={{ fontSize: '8px', color: palette.primaryDim, letterSpacing: '0.1em', whiteSpace: 'nowrap' }}>
+                {t.custom}
               </span>
               <input
                 className="cctv-input"
@@ -185,14 +187,14 @@ export default function ControlPanel({
                 style={{ padding: '2px 8px', fontSize: '9px' }}
                 onClick={applyCustomGrid}
               >
-                SET
+                {t.set}
               </button>
             </div>
           </div>
 
           {/* === VIDEO SOURCE === */}
           <div className="flex flex-col gap-1.5 flex-1 min-w-[220px]">
-            <div className="panel-section-title">VIDEO SOURCE — FOLDER</div>
+            <div className="panel-section-title">{t.videoSource}</div>
 
             {/* Open folder + path display */}
             <div className="flex gap-2 items-center">
@@ -211,7 +213,7 @@ export default function ControlPanel({
                 style={{ fontSize: '9px', whiteSpace: 'nowrap', flexShrink: 0 }}
                 onClick={() => folderInputRef.current?.click()}
               >
-                OPEN FOLDER
+                {t.openFolder}
               </button>
               {folderPath ? (
                 <span
@@ -223,7 +225,7 @@ export default function ControlPanel({
                 </span>
               ) : (
                 <span style={{ flex: 1, fontSize: '8px', color: 'oklch(0.32 0.06 145)', letterSpacing: '0.08em' }}>
-                  NO FOLDER SELECTED — CLICK TO BROWSE
+                  {t.noFolder}
                 </span>
               )}
             </div>
@@ -233,7 +235,7 @@ export default function ControlPanel({
               <div className="flex gap-2 items-center">
                 <input
                   className="cctv-input flex-1"
-                  placeholder="SEARCH FILES..."
+                  placeholder={t.searchFiles}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   style={{ fontSize: '9px', padding: '3px 7px' }}
@@ -243,7 +245,7 @@ export default function ControlPanel({
                   style={{ padding: '2px 7px', fontSize: '8px', whiteSpace: 'nowrap', flexShrink: 0 }}
                   onClick={() => setShowFileList((s) => !s)}
                 >
-                  {showFileList ? 'HIDE' : 'LIST'}
+                  {showFileList ? t.hide : t.list}
                 </button>
               </div>
             )}
@@ -296,19 +298,19 @@ export default function ControlPanel({
 
           {/* === STATUS === */}
           <div className="flex flex-col gap-1 min-w-[90px]">
-            <div className="panel-section-title">SYS STATUS</div>
+            <div className="panel-section-title">{t.sysStatus}</div>
             <div
               className="flex flex-col gap-0.5"
-              style={{ fontSize: '8px', letterSpacing: '0.07em', color: 'oklch(0.42 0.09 145)', lineHeight: 1.6 }}
+              style={{ fontSize: '8px', letterSpacing: '0.07em', color: palette.primaryDim, lineHeight: 1.6 }}
             >
-              <span>GRID: {gridConfig.layout === 'auto' ? 'AUTO' : `${gridConfig.cols}×${gridConfig.rows}`}</span>
-              <span>CAMS: <span className="crt-text">{cameraCount}</span></span>
-              <span>FILES: <span style={{ color: 'oklch(0.62 0.17 75)' }}>{folderVideos.length}</span></span>
-              <span style={{ color: noSignalCount > 0 ? 'oklch(0.65 0.2 25)' : 'oklch(0.62 0.17 145)' }}>
-                {noSignalCount > 0 ? `${noSignalCount}× NO SIGNAL` : 'ALL ASSIGNED'}
+              <span>{t.grid} {gridConfig.layout === 'auto' ? 'AUTO' : `${gridConfig.cols}×${gridConfig.rows}`}</span>
+              <span>{t.cams} <span className="crt-text">{cameraCount}</span></span>
+              <span>{t.files} <span style={{ color: 'oklch(0.62 0.17 75)' }}>{folderVideos.length}</span></span>
+              <span style={{ color: noSignalCount > 0 ? 'oklch(0.65 0.2 25)' : palette.primaryDim }}>
+                {noSignalCount > 0 ? `${noSignalCount}× ${t.noSig}` : t.allAssigned}
               </span>
-              <span style={{ marginTop: 4, color: 'oklch(0.35 0.07 145)' }}>
-                REC: ACTIVE
+              <span style={{ marginTop: 4, color: palette.primaryFaint }}>
+                {t.recActive}
               </span>
             </div>
           </div>
