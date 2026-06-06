@@ -18,7 +18,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import VideoCell, { type CameraConfig, type AspectRatioOption } from './VideoCell'
+import VideoCell, { type CameraConfig } from './VideoCell'
 import CameraSettings from './CameraSettings'
 
 const LOCATIONS = [
@@ -41,24 +41,13 @@ const makeDefaultCamera = (id: number): CameraConfig => ({
   noiseIntensity: 40,
 })
 
-export type GridLayout = '1x1' | '2x2' | '3x3' | '4x4' | '2x3' | '3x2' | '4x3' | 'auto'
+export type GridLayout = '1x1' | '2x2' | '3x3' | '4x4' | '2x3' | '3x2' | '4x3' | 'auto' | 'custom'
 
-interface GridConfig {
+export interface GridConfig {
   layout: GridLayout
   cols: number
   rows: number
 }
-
-const GRID_PRESETS: { layout: GridLayout; cols: number; rows: number; label: string }[] = [
-  { layout: '1x1', cols: 1, rows: 1, label: '1x1' },
-  { layout: '2x2', cols: 2, rows: 2, label: '2x2' },
-  { layout: '2x3', cols: 2, rows: 3, label: '2x3' },
-  { layout: '3x2', cols: 3, rows: 2, label: '3x2' },
-  { layout: '3x3', cols: 3, rows: 3, label: '3x3' },
-  { layout: '4x3', cols: 4, rows: 3, label: '4x3' },
-  { layout: '4x4', cols: 4, rows: 4, label: '4x4' },
-  { layout: 'auto', cols: 0, rows: 0, label: 'AUTO' },
-]
 
 function getAutoGrid(count: number): { cols: number; rows: number } {
   if (count <= 1) return { cols: 1, rows: 1 }
@@ -70,6 +59,9 @@ function getAutoGrid(count: number): { cols: number; rows: number } {
   return { cols: 4, rows: 4 }
 }
 
+// -----------------------------------------------------------------------
+// SortableCell — fills its grid slot 100%, clips video internally
+// -----------------------------------------------------------------------
 interface SortableCellProps {
   config: CameraConfig
   isFullscreen: boolean
@@ -77,8 +69,6 @@ interface SortableCellProps {
   showSettings: boolean
   onSettingsToggle: () => void
   onSettingsClose: () => void
-  gridCols: number
-  aspectRatioOverride: string | null
 }
 
 function SortableCell({
@@ -88,8 +78,6 @@ function SortableCell({
   showSettings,
   onSettingsToggle,
   onSettingsClose,
-  gridCols,
-  aspectRatioOverride,
 }: SortableCellProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: config.id,
@@ -100,69 +88,62 @@ function SortableCell({
     transition,
     opacity: isDragging ? 0.7 : 1,
     zIndex: isDragging ? 50 : undefined,
+    // Cell always fills its grid slot completely — no gaps
     position: 'relative',
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
   }
-
-  // Compute aspect ratio padding for the cell
-  let paddingBottom = '56.25%' // 16/9 default
-  const ar = config.aspectRatio
-  if (ar === '4/3') paddingBottom = '75%'
-  else if (ar === '1/1') paddingBottom = '100%'
-  else if (ar === '3/2') paddingBottom = '66.67%'
-  else if (ar === '16/9') paddingBottom = '56.25%'
-  else paddingBottom = '56.25%' // auto
 
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={`camera-cell ${isDragging ? 'dragging' : ''}`}
+      {...listeners}
+      {...attributes}
     >
-      {/* Inner wrapper with aspect ratio */}
-      <div
-        className="relative w-full"
-        style={{
-          paddingBottom: config.aspectRatio === 'auto' ? undefined : paddingBottom,
-          height: config.aspectRatio === 'auto' ? '100%' : undefined,
-        }}
-      >
-        <div
-          className="absolute inset-0"
-          {...listeners}
-          {...attributes}
-          style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+      {/* VideoCell fills the slot; video is clipped inside via object-fit:cover */}
+      <div className="absolute inset-0">
+        <VideoCell
+          config={config}
+          isFullscreen={isFullscreen}
+          onConfigChange={onConfigChange}
+        />
+      </div>
+
+      {/* Settings gear button — only in non-fullscreen, above drag layer */}
+      {!isFullscreen && (
+        <button
+          className="absolute top-1.5 right-1.5 z-30 cctv-btn"
+          style={{ padding: '2px 6px', fontSize: '9px' }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onSettingsToggle() }}
         >
-          <VideoCell
-            config={config}
-            isFullscreen={isFullscreen}
-            onConfigChange={onConfigChange}
-          />
-        </div>
+          {showSettings ? 'HIDE' : 'CFG'}
+        </button>
+      )}
 
-        {/* Settings gear button — only in non-fullscreen */}
-        {!isFullscreen && (
-          <button
-            className="absolute top-1.5 right-1.5 z-30 cctv-btn"
-            style={{ padding: '2px 6px', fontSize: '9px', pointerEvents: 'all' }}
-            onClick={(e) => { e.stopPropagation(); onSettingsToggle() }}
-          >
-            {showSettings ? 'HIDE' : 'CFG'}
-          </button>
-        )}
-
-        {/* Settings panel */}
-        {showSettings && !isFullscreen && (
+      {/* Settings overlay panel */}
+      {showSettings && !isFullscreen && (
+        <div
+          className="absolute inset-0 z-40"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           <CameraSettings
             config={config}
             onChange={(patch) => onConfigChange(config.id, patch)}
             onClose={onSettingsClose}
           />
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
 
+// -----------------------------------------------------------------------
+// CCTVGrid
+// -----------------------------------------------------------------------
 interface CCTVGridProps {
   isFullscreen: boolean
   folderVideos: File[]
@@ -178,31 +159,31 @@ export default function CCTVGrid({
 }: CCTVGridProps) {
   const [mounted, setMounted] = useState(false)
   const [cameras, setCameras] = useState<CameraConfig[]>(() =>
-    Array.from({ length: 16 }, (_, i) => makeDefaultCamera(i + 1))
+    Array.from({ length: 64 }, (_, i) => makeDefaultCamera(i + 1))
   )
   const [openSettings, setOpenSettings] = useState<number | null>(null)
 
   useEffect(() => { setMounted(true) }, [])
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
   // Auto-assign folder videos to cameras
   useEffect(() => {
-    if (folderVideos.length === 0) return
     setCameras((prev) => {
-      const updated = [...prev]
-      for (let i = 0; i < updated.length && i < folderVideos.length; i++) {
-        const file = folderVideos[i]
-        if (updated[i].videoUrl) URL.revokeObjectURL(updated[i].videoUrl!)
-        updated[i] = {
-          ...updated[i],
+      const updated = prev.map((cam, i) => {
+        const file = folderVideos[i] ?? null
+        const newUrl = file ? URL.createObjectURL(file) : null
+        // revoke old url if different
+        if (cam.videoUrl && cam.videoUrl !== newUrl) URL.revokeObjectURL(cam.videoUrl)
+        return {
+          ...cam,
           videoFile: file,
-          videoUrl: URL.createObjectURL(file),
+          videoUrl: newUrl,
         }
-      }
+      })
       return updated
     })
   }, [folderVideos])
@@ -221,7 +202,7 @@ export default function CCTVGrid({
     setCameras((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
   }, [])
 
-  // Determine actual grid dimensions
+  // Determine grid dimensions
   const { cols, rows } = globalGridConfig.layout === 'auto'
     ? getAutoGrid(cameraCount)
     : { cols: globalGridConfig.cols, rows: globalGridConfig.rows }
@@ -230,6 +211,9 @@ export default function CCTVGrid({
   const activeCameras = cameras.slice(0, totalCells)
   const ids = activeCameras.map((c) => c.id)
 
+  // The grid fills the entire available container.
+  // gridTemplateRows uses 1fr so every row takes equal height.
+  // Each cell uses position:absolute inset-0 to fill its slot with no gaps.
   const gridStyle: React.CSSProperties = {
     display: 'grid',
     gridTemplateColumns: `repeat(${cols}, 1fr)`,
@@ -237,15 +221,15 @@ export default function CCTVGrid({
     gap: '2px',
     width: '100%',
     height: '100%',
-    background: 'oklch(0.04 0.003 200)',
+    background: 'oklch(0.025 0.002 200)',
   }
 
-  // Static grid for SSR — no DnD IDs so no hydration mismatch
+  // SSR fallback — no dnd-kit ids to prevent hydration mismatch
   if (!mounted) {
     return (
       <div style={gridStyle} className="crt-flicker">
         {activeCameras.map((cam) => (
-          <div key={cam.id} className="camera-cell relative">
+          <div key={cam.id} style={{ position: 'relative', overflow: 'hidden' }} className="camera-cell">
             <div className="absolute inset-0">
               <VideoCell config={cam} isFullscreen={isFullscreen} onConfigChange={handleConfigChange} />
             </div>
@@ -270,8 +254,6 @@ export default function CCTVGrid({
                 setOpenSettings((prev) => (prev === cam.id ? null : cam.id))
               }
               onSettingsClose={() => setOpenSettings(null)}
-              gridCols={cols}
-              aspectRatioOverride={null}
             />
           ))}
         </div>

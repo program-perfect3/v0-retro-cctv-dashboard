@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import CCTVGrid from '@/components/cctv/CCTVGrid'
 import CCTVHeader from '@/components/cctv/CCTVHeader'
 import ControlPanel from '@/components/cctv/ControlPanel'
-import type { GridConfig } from '@/components/cctv/ControlPanel'
+import type { GridConfig } from '@/components/cctv/CCTVGrid'
 
 function getAutoGrid(count: number): { cols: number; rows: number } {
   if (count <= 1) return { cols: 1, rows: 1 }

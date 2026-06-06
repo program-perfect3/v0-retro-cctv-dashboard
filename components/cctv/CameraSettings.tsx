@@ -15,6 +15,7 @@ const ASPECT_OPTIONS: { value: AspectRatioOption; label: string }[] = [
   { value: '4/3', label: '4:3' },
   { value: '3/2', label: '3:2' },
   { value: '1/1', label: '1:1' },
+  { value: '9/16', label: '9:16' },
 ]
 
 export default function CameraSettings({ config, onChange, onClose }: CameraSettingsProps) {
