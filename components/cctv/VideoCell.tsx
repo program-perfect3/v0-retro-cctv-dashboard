@@ -26,7 +26,6 @@ interface VideoCellProps {
   onConfigChange: (id: number, patch: Partial<CameraConfig>) => void
 }
 
-// Maps aspect ratio key → [w, h] ratio numbers
 const AR_MAP: Record<AspectRatioOption, [number, number] | null> = {
   'auto': null,
   '16/9': [16, 9],
@@ -40,10 +39,11 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
   const { settings, palette } = useTheme()
   const videoRef = useRef<HTMLVideoElement>(null)
   const cellRef = useRef<HTMLDivElement>(null)
+  const lastPlaybackTimeRef = useRef<number | null>(null)
+  const stalledTicksRef = useRef(0)
   const [loaded, setLoaded] = useState(false)
   const [glitchActive, setGlitchActive] = useState(false)
   const [glitchStyle, setGlitchStyle] = useState<React.CSSProperties>({})
-  // Cell size for inner AR clipping
   const [cellSize, setCellSize] = useState<{ w: number; h: number } | null>(null)
 
   useEffect(() => {
@@ -51,10 +51,13 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
 
     if (!config.videoUrl || !v) {
       setLoaded(false)
+      lastPlaybackTimeRef.current = null
+      stalledTicksRef.current = 0
       return
     }
 
     let cancelled = false
+    let watchdogId: number | null = null
 
     const forcePlayback = async () => {
       if (cancelled) return
@@ -64,17 +67,21 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
       v.loop = true
       v.playsInline = true
       v.preload = 'auto'
+      v.controls = false
+      v.disablePictureInPicture = true
 
       try {
         await v.play()
         if (!cancelled) setLoaded(true)
       } catch {
         // Autoplay can still be temporarily blocked while the file is decoding.
-        // The ready-state listeners below retry playback once the browser is ready.
+        // The ready-state listeners and watchdog retry playback once the browser is ready.
       }
     }
 
     setLoaded(false)
+    lastPlaybackTimeRef.current = null
+    stalledTicksRef.current = 0
     v.pause()
     v.src = config.videoUrl
     v.load()
@@ -83,21 +90,75 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
       void forcePlayback()
     }
 
+    const handlePlaybackProgress = () => {
+      lastPlaybackTimeRef.current = v.currentTime
+      stalledTicksRef.current = 0
+      if (!cancelled) setLoaded(true)
+    }
+
+    const startWatchdog = () => {
+      watchdogId = window.setInterval(() => {
+        if (cancelled || document.hidden) return
+        if (!config.videoUrl) return
+
+        if (v.paused || v.ended) {
+          void forcePlayback()
+          return
+        }
+
+        const current = v.currentTime
+        const previous = lastPlaybackTimeRef.current
+
+        if (previous !== null && v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          const hasAdvanced = Math.abs(current - previous) > 0.01
+
+          if (!hasAdvanced && !v.seeking) {
+            stalledTicksRef.current += 1
+          } else {
+            stalledTicksRef.current = 0
+          }
+
+          if (stalledTicksRef.current >= 2) {
+            stalledTicksRef.current = 0
+            try {
+              if (Number.isFinite(v.duration) && v.duration > current + 0.05) {
+                v.currentTime = current + 0.05
+              }
+            } catch {
+              // Some codecs/streams do not allow precise seeks.
+            }
+            void forcePlayback()
+          }
+        }
+
+        lastPlaybackTimeRef.current = current
+      }, 3000)
+    }
+
     v.addEventListener('loadeddata', handleReady)
     v.addEventListener('canplay', handleReady)
     v.addEventListener('canplaythrough', handleReady)
+    v.addEventListener('playing', handlePlaybackProgress)
+    v.addEventListener('timeupdate', handlePlaybackProgress)
+    v.addEventListener('stalled', handleReady)
+    v.addEventListener('waiting', handleReady)
 
     void forcePlayback()
+    startWatchdog()
 
     return () => {
       cancelled = true
+      if (watchdogId !== null) window.clearInterval(watchdogId)
       v.removeEventListener('loadeddata', handleReady)
       v.removeEventListener('canplay', handleReady)
       v.removeEventListener('canplaythrough', handleReady)
+      v.removeEventListener('playing', handlePlaybackProgress)
+      v.removeEventListener('timeupdate', handlePlaybackProgress)
+      v.removeEventListener('stalled', handleReady)
+      v.removeEventListener('waiting', handleReady)
     }
   }, [config.videoUrl])
 
-  // Measure cell for inner aspect-ratio clipping
   useEffect(() => {
     const el = cellRef.current
     if (!el) return
@@ -110,7 +171,6 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
     return () => ro.disconnect()
   }, [])
 
-  // Random glitch flicker
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>
     const scheduleGlitch = () => {
@@ -145,11 +205,6 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
 
   const fisheyeId = `fisheye-${config.id}`
 
-  // Compute inner clip rect for non-auto aspect ratio
-  // The cell is cellSize.w × cellSize.h.
-  // We want to show a window of the target AR centered in the cell,
-  // letterboxing with black bars OR cropping — here we CROP so no bars appear.
-  // So we compute the largest rect of target AR that fits inside the cell.
   let innerStyle: React.CSSProperties = { position: 'absolute', inset: 0 }
   if (config.aspectRatio !== 'auto' && cellSize) {
     const ar = AR_MAP[config.aspectRatio]
@@ -159,11 +214,9 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
       const targetAR = arW / arH
       let iw: number, ih: number
       if (targetAR > cellAR) {
-        // target is wider — constrain by width
         iw = cellSize.w
         ih = cellSize.w / targetAR
       } else {
-        // target is taller — constrain by height
         ih = cellSize.h
         iw = cellSize.h * targetAR
       }
@@ -186,7 +239,6 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
       className="relative w-full h-full overflow-hidden bg-black group"
       style={{ background: 'oklch(0.025 0.002 200)' }}
     >
-      {/* SVG fisheye filter */}
       {config.fisheye && (
         <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
           <defs>
@@ -209,10 +261,8 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
         </svg>
       )}
 
-      {/* Black letterbox background — always black, never shows through */}
       <div className="absolute inset-0" style={{ background: '#000' }} />
 
-      {/* Inner content box — fills cell or is cropped to target AR */}
       <div style={innerStyle}>
         {hasVideo ? (
           <>
@@ -224,17 +274,21 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
               defaultMuted
               playsInline
               preload="auto"
+              disablePictureInPicture
+              controls={false}
+              controlsList="nodownload noplaybackrate noremoteplayback"
               onLoadedData={() => setLoaded(true)}
               onCanPlay={() => {
                 setLoaded(true)
                 void videoRef.current?.play().catch(() => {})
               }}
+              onStalled={() => void videoRef.current?.play().catch(() => {})}
+              onWaiting={() => void videoRef.current?.play().catch(() => {})}
               className={`absolute inset-0 w-full h-full ${loaded ? 'video-fade-in' : 'opacity-0'}`}
               style={{
                 objectFit: 'cover',
                 objectPosition: 'center',
                 filter: config.fisheye ? `${videoFilter} url(#${fisheyeId})` : videoFilter,
-                // fisheye barrel distortion via scale + border-radius trick
                 ...(config.fisheye ? {
                   transform: 'scale(1.08)',
                   borderRadius: '50%',
@@ -248,9 +302,7 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
           <NoSignal camId={config.id} label={config.label} />
         )}
 
-        {/* CRT effects layer — always inside the inner box */}
         <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
-          {/* Interlaced scanlines */}
           {settings.scanlines && (
             <div
               className="absolute inset-0"
@@ -261,7 +313,6 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
             />
           )}
 
-          {/* Noise */}
           {settings.noise && config.noiseIntensity > 0 && (
             <div
               className="noise-overlay"
@@ -269,7 +320,6 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
             />
           )}
 
-          {/* Vignette */}
           {settings.vignette && (
             <div
               className="absolute inset-0"
@@ -277,12 +327,10 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
             />
           )}
 
-          {/* Glitch artifact */}
           {glitchActive && settings.flicker && (
             <div className="absolute inset-0" style={glitchStyle} />
           )}
 
-          {/* Horizontal roll artifact */}
           <div
             className="absolute inset-0"
             style={{
@@ -290,17 +338,14 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
             }}
           />
 
-          {/* Inner CRT edge shadow */}
           <div
             className="absolute inset-0"
             style={{ boxShadow: 'inset 0 0 24px rgba(0,0,0,0.6)' }}
           />
 
-          {/* Glitch bar */}
           {settings.flicker && <div className="glitch-bar" />}
         </div>
 
-        {/* Timestamps — only when loaded and enabled */}
         {hasVideo && loaded && settings.timestampVisible && (
           <TimestampOverlay
             camId={config.id}
@@ -310,7 +355,6 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
           />
         )}
 
-        {/* Camera ID when no video */}
         {!hasVideo && (
           <div className="absolute top-1.5 left-2 z-20 cam-label">
             {config.label}
@@ -318,7 +362,6 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
         )}
       </div>
 
-      {/* Drag hint shown on hover */}
       <div
         className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-150"
         style={{ background: 'rgba(0,0,0,0)' }}
