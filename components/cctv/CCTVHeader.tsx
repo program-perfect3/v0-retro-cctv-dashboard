@@ -52,8 +52,8 @@ export default function CCTVHeader({
     <header
       className="flex items-center justify-between px-4 py-2 border-b scanlines"
       style={{
-        borderColor: 'oklch(0.22 0.05 145)',
-        background: 'oklch(0.07 0.005 200)',
+        borderColor: palette.border,
+        background: palette.bgCard,
         minHeight: '42px',
         position: 'relative',
         overflow: 'hidden',
@@ -72,21 +72,21 @@ export default function CCTVHeader({
 
         <div
           className="hidden md:flex items-center gap-1"
-          style={{ height: '28px', borderLeft: '1px solid oklch(0.22 0.05 145)', paddingLeft: '12px' }}
+          style={{ height: '28px', borderLeft: `1px solid ${palette.borderDim}`, paddingLeft: '12px' }}
         >
           {/* System ID */}
-          <span style={{ fontSize: '9px', letterSpacing: '0.1em', color: 'oklch(0.45 0.1 145)' }}>
+          <span style={{ fontSize: '9px', letterSpacing: '0.1em', color: palette.primaryDim }}>
             SYS ID:
           </span>
-          <span className="crt-text-amber" style={{ fontSize: '9px', letterSpacing: '0.08em' }}>
+          <span className="crt-text" style={{ fontSize: '9px', letterSpacing: '0.08em' }}>
             {sysId}
           </span>
         </div>
 
         {/* Status indicators */}
         <div className="hidden lg:flex items-center gap-3">
-          <StatusPill label={t.online} active={true} color="green" glow={settings.glow} palette={palette} />
-          <StatusPill label={`${activeCount}/${cameraCount} CAM`} active={true} color="amber" glow={settings.glow} palette={palette} />
+          <StatusPill label={t.online} active={true} color="theme" glow={settings.glow} palette={palette} />
+          <StatusPill label={`${activeCount}/${cameraCount} CAM`} active={true} color="theme" glow={settings.glow} palette={palette} />
           <StatusPill label={t.rec} active={true} color="red" blink glow={settings.glow} palette={palette} />
         </div>
       </div>
@@ -96,8 +96,8 @@ export default function CCTVHeader({
         className="hidden md:block flex-1 mx-4 overflow-hidden"
         style={{
           height: '18px',
-          borderTop: '1px solid oklch(0.18 0.04 145)',
-          borderBottom: '1px solid oklch(0.18 0.04 145)',
+          borderTop: `1px solid ${palette.borderDim}`,
+          borderBottom: `1px solid ${palette.borderDim}`,
         }}
       >
         <div className="ticker" style={{ fontSize: '9px', letterSpacing: '0.1em', color: palette.primaryDim, lineHeight: '18px' }}>
@@ -142,17 +142,13 @@ function StatusPill({
 }: {
   label: string
   active: boolean
-  color: 'green' | 'amber' | 'red'
+  color: 'theme' | 'red'
   blink?: boolean
   glow?: boolean
   palette: { primary: string; primaryDim: string; textGlow: string }
 }) {
-  // Use theme primary for green, fixed amber/red for others
-  const dotColor = color === 'green'
-    ? palette.primary
-    : color === 'amber'
-    ? 'oklch(0.75 0.18 75)'
-    : 'oklch(0.7 0.22 25)'
+  const dotColor = color === 'red' ? 'oklch(0.7 0.22 25)' : palette.primary
+  const inactiveColor = 'oklch(0.3 0.05 200)'
 
   return (
     <div className="flex items-center gap-1">
@@ -164,7 +160,7 @@ function StatusPill({
           animation: blink && active ? 'rec-pulse 1s ease-in-out infinite' : undefined,
         }}
       />
-      <span style={{ fontSize: '8px', letterSpacing: '0.1em', color: active ? dotColor : 'oklch(0.3 0.05 200)' }}>
+      <span style={{ fontSize: '8px', letterSpacing: '0.1em', color: active ? dotColor : inactiveColor }}>
         {label}
       </span>
     </div>
