@@ -1,6 +1,6 @@
 'use client'
 
-import { useTheme, THEME_PALETTES, type ThemeColor, type Locale } from '@/lib/themeContext'
+import { useTheme, THEME_PALETTES, getCctvNow, type ThemeColor, type Locale } from '@/lib/themeContext'
 
 interface ThemeSettingsPanelProps {
   onClose: () => void
@@ -8,10 +8,55 @@ interface ThemeSettingsPanelProps {
 
 const COLORS: ThemeColor[] = ['green', 'amber', 'red', 'blue', 'white']
 
+const pad2 = (value: number) => String(value).padStart(2, '0')
+
+function toDateInputValue(date: Date) {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+}
+
+function toTimeInputValue(date: Date) {
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
+}
+
+function dateFromInputs(dateValue: string, timeValue: string) {
+  const [year, month, day] = dateValue.split('-').map(Number)
+  const [hours = 0, minutes = 0, seconds = 0] = timeValue.split(':').map(Number)
+
+  if (!year || !month || !day) return null
+
+  return new Date(year, month - 1, day, hours, minutes, seconds, 0)
+}
+
 export default function ThemeSettingsPanel({ onClose }: ThemeSettingsPanelProps) {
   const { settings, update, t, palette } = useTheme()
 
   const p = palette
+  const clockNow = getCctvNow(settings)
+  const clockDateValue = toDateInputValue(clockNow)
+  const clockTimeValue = toTimeInputValue(clockNow)
+  const clockIsCustom = settings.clockBaseTimeMs !== null && settings.clockBaseRealMs !== null
+
+  const setClockFromInputs = (dateValue: string, timeValue: string) => {
+    const next = dateFromInputs(dateValue, timeValue)
+    if (!next) return
+
+    update({
+      clockBaseTimeMs: next.getTime(),
+      clockBaseRealMs: Date.now(),
+    })
+  }
+
+  const setClockToCurrentRealTime = () => {
+    const now = new Date()
+    update({
+      clockBaseTimeMs: now.getTime(),
+      clockBaseRealMs: Date.now(),
+    })
+  }
+
+  const resetClockToDeviceTime = () => {
+    update({ clockBaseTimeMs: null, clockBaseRealMs: null })
+  }
 
   // Reusable row
   const Row = ({ label, children }: { label: string; children: React.ReactNode }) => (
@@ -37,7 +82,6 @@ export default function ThemeSettingsPanel({ onClose }: ThemeSettingsPanelProps)
       }}
       aria-pressed={value}
     >
-      {/* LED indicator */}
       <div style={{
         width: 28,
         height: 13,
@@ -148,7 +192,6 @@ export default function ThemeSettingsPanel({ onClose }: ThemeSettingsPanelProps)
                   minWidth: 64,
                 }}
               >
-                {/* Color swatch */}
                 <div style={{
                   width: 24,
                   height: 10,
@@ -197,6 +240,51 @@ export default function ThemeSettingsPanel({ onClose }: ThemeSettingsPanelProps)
           ))}
         </div>
 
+        {/* ── CLOCK ── */}
+        <div style={{ fontSize: '8px', letterSpacing: '0.2em', color: p.primaryFaint, paddingTop: 8, paddingBottom: 4 }}>
+          — {t.clockTitle} —
+        </div>
+
+        <div className="flex flex-col gap-2 pb-3" style={{ borderBottom: `1px solid ${p.borderDim}` }}>
+          <div className="flex items-center gap-2">
+            <label style={{ fontSize: '8px', color: p.primaryDim, letterSpacing: '0.1em', minWidth: 42 }}>{t.clockDate}</label>
+            <input
+              className="cctv-input"
+              type="date"
+              value={clockDateValue}
+              onChange={(e) => setClockFromInputs(e.target.value, clockTimeValue)}
+              style={{ fontSize: '9px', padding: '3px 6px', colorScheme: 'dark' }}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label style={{ fontSize: '8px', color: p.primaryDim, letterSpacing: '0.1em', minWidth: 42 }}>{t.clockTime}</label>
+            <input
+              className="cctv-input"
+              type="time"
+              step={1}
+              value={clockTimeValue}
+              onChange={(e) => setClockFromInputs(clockDateValue, e.target.value)}
+              style={{ fontSize: '9px', padding: '3px 6px', colorScheme: 'dark' }}
+            />
+          </div>
+          <div className="flex gap-1.5">
+            <button
+              className="cctv-btn"
+              onClick={setClockToCurrentRealTime}
+              style={{ padding: '3px 8px', fontSize: '8px' }}
+            >
+              {t.clockNow}
+            </button>
+            <button
+              className="cctv-btn"
+              onClick={resetClockToDeviceTime}
+              style={{ padding: '3px 8px', fontSize: '8px', opacity: clockIsCustom ? 1 : 0.55 }}
+            >
+              {t.clockReset}
+            </button>
+          </div>
+        </div>
+
         {/* ── TEXT SIZE ── */}
         <div style={{ fontSize: '8px', letterSpacing: '0.2em', color: p.primaryFaint, paddingTop: 8, paddingBottom: 4 }}>
           — {t.textSize} —
@@ -205,13 +293,11 @@ export default function ThemeSettingsPanel({ onClose }: ThemeSettingsPanelProps)
         <div className="flex items-center gap-3 pb-3" style={{ borderBottom: `1px solid ${p.borderDim}` }}>
           <span style={{ fontSize: '9px', color: p.primaryDim, minWidth: 22 }}>A</span>
           <div style={{ flex: 1, position: 'relative', height: 20, display: 'flex', alignItems: 'center' }}>
-            {/* Track */}
             <div style={{
               position: 'absolute',
               left: 0, right: 0, height: 2,
               background: p.borderDim,
             }} />
-            {/* Fill */}
             <div style={{
               position: 'absolute',
               left: 0,
@@ -297,7 +383,6 @@ export default function ThemeSettingsPanel({ onClose }: ThemeSettingsPanelProps)
           <Toggle value={settings.timestampVisible} onChange={(v) => update({ timestampVisible: v })} />
         </Row>
 
-        {/* Bottom padding */}
         <div style={{ height: 16 }} />
       </div>
     </div>
