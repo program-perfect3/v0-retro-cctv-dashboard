@@ -60,9 +60,6 @@ function getAutoGrid(count: number): { cols: number; rows: number } {
   return { cols: 4, rows: 4 }
 }
 
-// -----------------------------------------------------------------------
-// SortableCell — fills its grid slot 100%, clips video internally
-// -----------------------------------------------------------------------
 interface SortableCellProps {
   config: CameraConfig
   isFullscreen: boolean
@@ -111,7 +108,6 @@ function SortableCell({
         />
       </div>
 
-      {/* Settings gear button — only in non-fullscreen, above drag layer */}
       {!isFullscreen && (
         <button
           className="absolute top-1.5 right-1.5 z-30 cctv-btn"
@@ -123,7 +119,6 @@ function SortableCell({
         </button>
       )}
 
-      {/* Settings overlay panel */}
       {showSettings && !isFullscreen && (
         <div
           className="absolute inset-0 z-40"
@@ -140,9 +135,6 @@ function SortableCell({
   )
 }
 
-// -----------------------------------------------------------------------
-// CCTVGrid
-// -----------------------------------------------------------------------
 interface CCTVGridProps {
   isFullscreen: boolean
   folderVideos: File[]
@@ -183,12 +175,12 @@ export default function CCTVGrid({
     : { cols: globalGridConfig.cols, rows: globalGridConfig.rows }
 
   const totalCells = cols * rows
-  const visibleFiles = folderVideos.slice(0, totalCells)
 
   // Auto-assign only the currently visible folder videos to cameras.
-  // Reuse object URLs per File instead of recreating/reloading them on every reorder.
+  // Reuse object URLs per File instead of recreating/reloading them on every render/reorder.
   useEffect(() => {
     const cache = objectUrlCacheRef.current
+    const visibleFiles = folderVideos.slice(0, totalCells)
     const visibleFileSet = new Set(visibleFiles)
 
     for (const [file, url] of cache) {
@@ -198,27 +190,33 @@ export default function CCTVGrid({
       }
     }
 
-    setCameras((prev) => prev.map((cam, i) => {
-      const file = i < totalCells ? visibleFiles[i] ?? null : null
-      let videoUrl: string | null = null
+    setCameras((prev) => {
+      let changed = false
+      const next = prev.map((cam, i) => {
+        const file = i < totalCells ? visibleFiles[i] ?? null : null
+        let videoUrl: string | null = null
 
-      if (file) {
-        videoUrl = cache.get(file) ?? null
-        if (!videoUrl) {
-          videoUrl = URL.createObjectURL(file)
-          cache.set(file, videoUrl)
+        if (file) {
+          videoUrl = cache.get(file) ?? null
+          if (!videoUrl) {
+            videoUrl = URL.createObjectURL(file)
+            cache.set(file, videoUrl)
+          }
         }
-      }
 
-      if (cam.videoFile === file && cam.videoUrl === videoUrl) return cam
+        if (cam.videoFile === file && cam.videoUrl === videoUrl) return cam
 
-      return {
-        ...cam,
-        videoFile: file,
-        videoUrl,
-      }
-    }))
-  }, [visibleFiles, totalCells])
+        changed = true
+        return {
+          ...cam,
+          videoFile: file,
+          videoUrl,
+        }
+      })
+
+      return changed ? next : prev
+    })
+  }, [folderVideos, totalCells])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
