@@ -37,7 +37,7 @@ const AR_MAP: Record<AspectRatioOption, [number, number] | null> = {
 }
 
 export default function VideoCell({ config, isFullscreen, onConfigChange }: VideoCellProps) {
-  const { settings } = useTheme()
+  const { settings, palette } = useTheme()
   const videoRef = useRef<HTMLVideoElement>(null)
   const cellRef = useRef<HTMLDivElement>(null)
   const [loaded, setLoaded] = useState(false)
@@ -122,7 +122,7 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
         setGlitchStyle({
           clipPath: `inset(${clipY1}% 0 ${100 - clipY2}% 0)`,
           transform: `translateX(${tx}px)`,
-          background: `rgba(${Math.random() > 0.5 ? '100,255,100' : '255,255,100'},0.06)`,
+          background: `color-mix(in oklch, ${palette.primary} 8%, transparent)`,
         })
         setGlitchActive(true)
         setTimeout(() => {
@@ -133,7 +133,7 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
     }
     scheduleGlitch()
     return () => clearTimeout(timer)
-  }, [])
+  }, [palette.primary])
 
   const hasVideo = !!config.videoUrl
 
@@ -328,11 +328,11 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
             fontFamily: 'var(--font-share-tech-mono), monospace',
             fontSize: '9px',
             letterSpacing: '0.15em',
-            color: 'oklch(0.68 0.18 145)',
-            textShadow: '0 0 6px oklch(0.68 0.22 145 / 0.6)',
+            color: palette.primary,
+            textShadow: settings.glow ? palette.textGlow : 'none',
             background: 'rgba(0,0,0,0.65)',
             padding: '2px 7px',
-            border: '1px solid oklch(0.35 0.1 145)',
+            border: `1px solid ${palette.border}`,
             pointerEvents: 'none',
           }}
         >
