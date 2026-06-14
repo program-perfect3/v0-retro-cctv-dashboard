@@ -34,9 +34,9 @@ export default function CameraSettings({ config, onChange, onClose }: CameraSett
     <div
       className="absolute inset-0 z-50 overflow-y-auto"
       style={{
-        background: 'rgba(2,8,4,0.96)',
-        border: '1px solid oklch(0.28 0.07 145)',
-        boxShadow: '0 0 20px oklch(0.55 0.18 145 / 0.2)',
+        background: `${palette.bg}F5`,
+        border: `1px solid ${palette.border}`,
+        boxShadow: `0 0 20px color-mix(in oklch, ${palette.primary} 20%, transparent)`,
         fontFamily: 'var(--font-share-tech-mono), monospace',
       }}
     >
@@ -126,7 +126,7 @@ export default function CameraSettings({ config, onChange, onClose }: CameraSett
             value={config.brightness}
             onChange={(e) => onChange({ brightness: Number(e.target.value) })}
             className="w-full"
-            style={{ accentColor: 'oklch(0.68 0.18 145)' }}
+            style={{ accentColor: palette.primary }}
           />
         </div>
 
@@ -140,7 +140,7 @@ export default function CameraSettings({ config, onChange, onClose }: CameraSett
             value={config.contrast}
             onChange={(e) => onChange({ contrast: Number(e.target.value) })}
             className="w-full"
-            style={{ accentColor: 'oklch(0.68 0.18 145)' }}
+            style={{ accentColor: palette.primary }}
           />
         </div>
 
@@ -154,13 +154,13 @@ export default function CameraSettings({ config, onChange, onClose }: CameraSett
             value={config.noiseIntensity}
             onChange={(e) => onChange({ noiseIntensity: Number(e.target.value) })}
             className="w-full"
-            style={{ accentColor: 'oklch(0.68 0.18 145)' }}
+            style={{ accentColor: palette.primary }}
           />
         </div>
 
         {/* Fisheye toggle */}
         <div className="flex items-center justify-between">
-          <span style={{ fontSize: '10px', letterSpacing: '0.1em', color: 'oklch(0.5 0.1 145)' }}>
+          <span style={{ fontSize: '10px', letterSpacing: '0.1em', color: palette.primaryDim }}>
             FISHEYE LENS
           </span>
           <button
