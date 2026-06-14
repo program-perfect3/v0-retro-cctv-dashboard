@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useTheme } from '@/lib/themeContext'
+import { useTheme, getCctvNow } from '@/lib/themeContext'
 
 interface CCTVHeaderProps {
   isFullscreen: boolean
@@ -31,7 +31,7 @@ export default function CCTVHeader({
 
   useEffect(() => {
     const tick = () => {
-      const now = new Date()
+      const now = getCctvNow(settings)
       const h = String(now.getHours()).padStart(2, '0')
       const m = String(now.getMinutes()).padStart(2, '0')
       const s = String(now.getSeconds()).padStart(2, '0')
@@ -44,7 +44,7 @@ export default function CCTVHeader({
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
-  }, [])
+  }, [settings])
 
   if (isFullscreen) return null
 
@@ -59,7 +59,6 @@ export default function CCTVHeader({
         overflow: 'hidden',
       }}
     >
-      {/* Left: logo + system info */}
       <div className="flex items-center gap-4">
         <div className="flex flex-col leading-none">
           <span className="crt-text" style={{ fontSize: '14px', letterSpacing: '0.2em', fontWeight: 'bold' }}>
@@ -74,7 +73,6 @@ export default function CCTVHeader({
           className="hidden md:flex items-center gap-1"
           style={{ height: '28px', borderLeft: `1px solid ${palette.borderDim}`, paddingLeft: '12px' }}
         >
-          {/* System ID */}
           <span style={{ fontSize: '9px', letterSpacing: '0.1em', color: palette.primaryDim }}>
             SYS ID:
           </span>
@@ -83,7 +81,6 @@ export default function CCTVHeader({
           </span>
         </div>
 
-        {/* Status indicators */}
         <div className="hidden lg:flex items-center gap-3">
           <StatusPill label={t.online} active={true} color="theme" glow={settings.glow} palette={palette} />
           <StatusPill label={`${activeCount}/${cameraCount} CAM`} active={true} color="theme" glow={settings.glow} palette={palette} />
@@ -91,7 +88,6 @@ export default function CCTVHeader({
         </div>
       </div>
 
-      {/* Center: ticker */}
       <div
         className="hidden md:block flex-1 mx-4 overflow-hidden"
         style={{
@@ -105,7 +101,6 @@ export default function CCTVHeader({
         </div>
       </div>
 
-      {/* Right: time + controls */}
       <div className="flex items-center gap-2">
         <div className="text-right hidden sm:block">
           <div style={{ fontSize: '14px', letterSpacing: '0.08em', lineHeight: 1, color: palette.primary, textShadow: settings.glow ? palette.textGlow : 'none' }}>
