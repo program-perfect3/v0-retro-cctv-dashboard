@@ -19,7 +19,7 @@ const STATIC_TINT: Record<ThemeColor, [number, number, number]> = {
 export default function NoSignal({ camId, label }: NoSignalProps) {
   const { t, palette, settings } = useTheme()
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const animRef = useRef<number>(0)
+  const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -27,13 +27,17 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    let cancelled = false
     const [tintR, tintG, tintB] = STATIC_TINT[settings.color]
 
     const draw = () => {
+      if (cancelled) return
+
       const w = canvas.width
       const h = canvas.height
 
-      // Random static noise tinted by selected CCTV theme colour
+      // Random static noise tinted by selected CCTV theme colour.
+      // Throttled to avoid burning CPU on empty grid cells.
       const imageData = ctx.createImageData(w, h)
       const data = imageData.data
 
@@ -61,11 +65,14 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
         ctx.fillRect(0, y, w, 2)
       }
 
-      animRef.current = requestAnimationFrame(draw)
+      timerRef.current = window.setTimeout(draw, 120)
     }
 
     draw()
-    return () => cancelAnimationFrame(animRef.current)
+    return () => {
+      cancelled = true
+      if (timerRef.current !== null) window.clearTimeout(timerRef.current)
+    }
   }, [settings.color])
 
   return (
