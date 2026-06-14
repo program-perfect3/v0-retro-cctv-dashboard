@@ -47,15 +47,54 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
   const [cellSize, setCellSize] = useState<{ w: number; h: number } | null>(null)
 
   useEffect(() => {
-    if (!config.videoUrl) {
+    const v = videoRef.current
+
+    if (!config.videoUrl || !v) {
       setLoaded(false)
       return
     }
-    const v = videoRef.current
-    if (!v) return
+
+    let cancelled = false
+
+    const forcePlayback = async () => {
+      if (cancelled) return
+
+      v.muted = true
+      v.defaultMuted = true
+      v.loop = true
+      v.playsInline = true
+      v.preload = 'auto'
+
+      try {
+        await v.play()
+        if (!cancelled) setLoaded(true)
+      } catch {
+        // Autoplay can still be temporarily blocked while the file is decoding.
+        // The ready-state listeners below retry playback once the browser is ready.
+      }
+    }
+
     setLoaded(false)
+    v.pause()
     v.src = config.videoUrl
     v.load()
+
+    const handleReady = () => {
+      void forcePlayback()
+    }
+
+    v.addEventListener('loadeddata', handleReady)
+    v.addEventListener('canplay', handleReady)
+    v.addEventListener('canplaythrough', handleReady)
+
+    void forcePlayback()
+
+    return () => {
+      cancelled = true
+      v.removeEventListener('loadeddata', handleReady)
+      v.removeEventListener('canplay', handleReady)
+      v.removeEventListener('canplaythrough', handleReady)
+    }
   }, [config.videoUrl])
 
   // Measure cell for inner aspect-ratio clipping
@@ -182,8 +221,14 @@ export default function VideoCell({ config, isFullscreen, onConfigChange }: Vide
               autoPlay
               loop
               muted
+              defaultMuted
               playsInline
-              onCanPlay={() => setLoaded(true)}
+              preload="auto"
+              onLoadedData={() => setLoaded(true)}
+              onCanPlay={() => {
+                setLoaded(true)
+                void videoRef.current?.play().catch(() => {})
+              }}
               className={`absolute inset-0 w-full h-full ${loaded ? 'video-fade-in' : 'opacity-0'}`}
               style={{
                 objectFit: 'cover',
