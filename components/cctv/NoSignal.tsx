@@ -1,11 +1,19 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useTheme } from '@/lib/themeContext'
+import { useTheme, type ThemeColor } from '@/lib/themeContext'
 
 interface NoSignalProps {
   camId: number
   label: string
+}
+
+const STATIC_TINT: Record<ThemeColor, [number, number, number]> = {
+  green: [120, 255, 160],
+  amber: [255, 210, 90],
+  red: [255, 95, 80],
+  blue: [95, 155, 255],
+  white: [220, 225, 230],
 }
 
 export default function NoSignal({ camId, label }: NoSignalProps) {
@@ -19,22 +27,21 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    let frame = 0
+    const [tintR, tintG, tintB] = STATIC_TINT[settings.color]
 
     const draw = () => {
       const w = canvas.width
       const h = canvas.height
 
-      // Random static noise
+      // Random static noise tinted by selected CCTV theme colour
       const imageData = ctx.createImageData(w, h)
       const data = imageData.data
 
       for (let i = 0; i < data.length; i += 4) {
         const v = Math.random() * 255
-        // Slight green tint to static
-        data[i] = v * 0.3
-        data[i + 1] = v * 0.55
-        data[i + 2] = v * 0.3
+        data[i] = v * (tintR / 255) * 0.55
+        data[i + 1] = v * (tintG / 255) * 0.55
+        data[i + 2] = v * (tintB / 255) * 0.55
         data[i + 3] = 255
       }
 
@@ -44,7 +51,7 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
       if (Math.random() < 0.08) {
         const y = Math.random() * h
         const lineH = Math.random() * 6 + 1
-        ctx.fillStyle = `rgba(180, 255, 180, ${Math.random() * 0.15})`
+        ctx.fillStyle = `rgba(${tintR}, ${tintG}, ${tintB}, ${Math.random() * 0.15})`
         ctx.fillRect(0, y, w, lineH)
       }
 
@@ -54,13 +61,12 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
         ctx.fillRect(0, y, w, 2)
       }
 
-      frame++
       animRef.current = requestAnimationFrame(draw)
     }
 
     draw()
     return () => cancelAnimationFrame(animRef.current)
-  }, [])
+  }, [settings.color])
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden select-none">
