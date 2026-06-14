@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -89,7 +89,6 @@ function SortableCell({
     transition,
     opacity: isDragging ? 0.7 : 1,
     zIndex: isDragging ? 50 : undefined,
-    // Cell always fills its grid slot completely — no gaps
     position: 'relative',
     width: '100%',
     height: '100%',
@@ -104,7 +103,6 @@ function SortableCell({
       {...listeners}
       {...attributes}
     >
-      {/* VideoCell fills the slot; video is clipped inside via object-fit:cover */}
       <div className="absolute inset-0">
         <VideoCell
           config={config}
@@ -164,31 +162,63 @@ export default function CCTVGrid({
     Array.from({ length: 64 }, (_, i) => makeDefaultCamera(i + 1))
   )
   const [openSettings, setOpenSettings] = useState<number | null>(null)
+  const objectUrlCacheRef = useRef<Map<File, string>>(new Map())
 
   useEffect(() => { setMounted(true) }, [])
+
+  useEffect(() => {
+    return () => {
+      objectUrlCacheRef.current.forEach((url) => URL.revokeObjectURL(url))
+      objectUrlCacheRef.current.clear()
+    }
+  }, [])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  // Auto-assign folder videos to cameras
+  const { cols, rows } = globalGridConfig.layout === 'auto'
+    ? getAutoGrid(cameraCount)
+    : { cols: globalGridConfig.cols, rows: globalGridConfig.rows }
+
+  const totalCells = cols * rows
+  const visibleFiles = folderVideos.slice(0, totalCells)
+
+  // Auto-assign only the currently visible folder videos to cameras.
+  // Reuse object URLs per File instead of recreating/reloading them on every reorder.
   useEffect(() => {
-    setCameras((prev) => {
-      const updated = prev.map((cam, i) => {
-        const file = folderVideos[i] ?? null
-        const newUrl = file ? URL.createObjectURL(file) : null
-        // revoke old url if different
-        if (cam.videoUrl && cam.videoUrl !== newUrl) URL.revokeObjectURL(cam.videoUrl)
-        return {
-          ...cam,
-          videoFile: file,
-          videoUrl: newUrl,
+    const cache = objectUrlCacheRef.current
+    const visibleFileSet = new Set(visibleFiles)
+
+    for (const [file, url] of cache) {
+      if (!visibleFileSet.has(file)) {
+        URL.revokeObjectURL(url)
+        cache.delete(file)
+      }
+    }
+
+    setCameras((prev) => prev.map((cam, i) => {
+      const file = i < totalCells ? visibleFiles[i] ?? null : null
+      let videoUrl: string | null = null
+
+      if (file) {
+        videoUrl = cache.get(file) ?? null
+        if (!videoUrl) {
+          videoUrl = URL.createObjectURL(file)
+          cache.set(file, videoUrl)
         }
-      })
-      return updated
-    })
-  }, [folderVideos])
+      }
+
+      if (cam.videoFile === file && cam.videoUrl === videoUrl) return cam
+
+      return {
+        ...cam,
+        videoFile: file,
+        videoUrl,
+      }
+    }))
+  }, [visibleFiles, totalCells])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
@@ -204,18 +234,9 @@ export default function CCTVGrid({
     setCameras((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
   }, [])
 
-  // Determine grid dimensions
-  const { cols, rows } = globalGridConfig.layout === 'auto'
-    ? getAutoGrid(cameraCount)
-    : { cols: globalGridConfig.cols, rows: globalGridConfig.rows }
-
-  const totalCells = cols * rows
   const activeCameras = cameras.slice(0, totalCells)
   const ids = activeCameras.map((c) => c.id)
 
-  // The grid fills the entire available container.
-  // gridTemplateRows uses 1fr so every row takes equal height.
-  // Each cell uses position:absolute inset-0 to fill its slot with no gaps.
   const gridStyle: React.CSSProperties = {
     display: 'grid',
     gridTemplateColumns: `repeat(${cols}, 1fr)`,
@@ -226,7 +247,6 @@ export default function CCTVGrid({
     background: 'oklch(0.025 0.002 200)',
   }
 
-  // SSR fallback — no dnd-kit ids to prevent hydration mismatch
   if (!mounted) {
     return (
       <div style={gridStyle} className="crt-flicker">
