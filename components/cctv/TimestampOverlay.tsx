@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useTheme } from '@/lib/themeContext'
+import { useTheme, getCctvNow, type ThemeSettings } from '@/lib/themeContext'
 
 interface TimestampOverlayProps {
   camId: number
@@ -10,8 +10,8 @@ interface TimestampOverlayProps {
   showRec?: boolean
 }
 
-function getTimestampState() {
-  const now = new Date()
+function getTimestampState(settings: ThemeSettings) {
+  const now = getCctvNow(settings)
   const h = String(now.getHours()).padStart(2, '0')
   const m = String(now.getMinutes()).padStart(2, '0')
   const s = String(now.getSeconds()).padStart(2, '0')
@@ -32,19 +32,18 @@ export default function TimestampOverlay({
   location = 'LOC UNKNOWN',
   showRec = true,
 }: TimestampOverlayProps) {
-  const { palette } = useTheme()
-  const [stamp, setStamp] = useState(getTimestampState)
+  const { palette, settings } = useTheme()
+  const [stamp, setStamp] = useState(() => getTimestampState(settings))
 
   useEffect(() => {
-    const tick = () => setStamp(getTimestampState())
+    const tick = () => setStamp(getTimestampState(settings))
     tick()
     const id = window.setInterval(tick, 1000)
     return () => window.clearInterval(id)
-  }, [])
+  }, [settings])
 
   return (
     <>
-      {/* Top-left: camera id + label */}
       <div className="absolute top-2 left-2 z-20 flex flex-col gap-0.5">
         <div className="timestamp-overlay">
           CAM {String(camId).padStart(2, '0')} — {label}
@@ -54,7 +53,6 @@ export default function TimestampOverlay({
         </div>
       </div>
 
-      {/* Top-right: REC dot + frame */}
       {showRec && (
         <div className="absolute top-2 right-2 z-20 flex items-center gap-1.5">
           <div className="rec-dot" />
@@ -64,12 +62,10 @@ export default function TimestampOverlay({
         </div>
       )}
 
-      {/* Bottom-left: date */}
       <div className="absolute bottom-2 left-2 z-20">
         <div className="timestamp-overlay">{stamp.date}</div>
       </div>
 
-      {/* Bottom-right: time + frame number */}
       <div className="absolute bottom-2 right-2 z-20 text-right">
         <div className="timestamp-overlay">{stamp.time}</div>
         <div className="timestamp-overlay" style={{ fontSize: '9px', color: palette.primaryDim, opacity: 0.7 }}>
