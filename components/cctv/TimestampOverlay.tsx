@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useTheme } from '@/lib/themeContext'
 
 interface TimestampOverlayProps {
   camId: number
@@ -15,6 +16,7 @@ export default function TimestampOverlay({
   location = 'LOC UNKNOWN',
   showRec = true,
 }: TimestampOverlayProps) {
+  const { palette } = useTheme()
   const [time, setTime] = useState('')
   const [date, setDate] = useState('')
   const [frameCount, setFrameCount] = useState(0)
@@ -47,7 +49,7 @@ export default function TimestampOverlay({
         <div className="timestamp-overlay">
           CAM {String(camId).padStart(2, '0')} — {label}
         </div>
-        <div className="timestamp-overlay" style={{ fontSize: '9px', color: 'oklch(0.6 0.15 75)', opacity: 0.85 }}>
+        <div className="timestamp-overlay" style={{ fontSize: '9px', color: palette.primaryDim, opacity: 0.85 }}>
           {location}
         </div>
       </div>
@@ -70,7 +72,7 @@ export default function TimestampOverlay({
       {/* Bottom-right: time + frame number */}
       <div className="absolute bottom-2 right-2 z-20 text-right">
         <div className="timestamp-overlay">{time}</div>
-        <div className="timestamp-overlay" style={{ fontSize: '9px', opacity: 0.7 }}>
+        <div className="timestamp-overlay" style={{ fontSize: '9px', color: palette.primaryDim, opacity: 0.7 }}>
           F:{String(frameCount).padStart(2, '0')}
         </div>
       </div>
