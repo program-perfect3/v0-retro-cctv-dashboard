@@ -34,7 +34,7 @@ export default function CameraSettings({ config, onChange, onClose }: CameraSett
     <div
       className="absolute inset-0 z-50 overflow-y-auto"
       style={{
-        background: `${palette.bg}F5`,
+        background: palette.bg,
         border: `1px solid ${palette.border}`,
         boxShadow: `0 0 20px color-mix(in oklch, ${palette.primary} 20%, transparent)`,
         fontFamily: 'var(--font-share-tech-mono), monospace',
