@@ -10,6 +10,22 @@ interface TimestampOverlayProps {
   showRec?: boolean
 }
 
+function getTimestampState() {
+  const now = new Date()
+  const h = String(now.getHours()).padStart(2, '0')
+  const m = String(now.getMinutes()).padStart(2, '0')
+  const s = String(now.getSeconds()).padStart(2, '0')
+  const yr = now.getFullYear()
+  const mo = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+
+  return {
+    time: `${h}:${m}:${s}`,
+    date: `${d}/${mo}/${yr}`,
+    frameCount: now.getSeconds() % 30,
+  }
+}
+
 export default function TimestampOverlay({
   camId,
   label,
@@ -17,29 +33,13 @@ export default function TimestampOverlay({
   showRec = true,
 }: TimestampOverlayProps) {
   const { palette } = useTheme()
-  const [time, setTime] = useState('')
-  const [date, setDate] = useState('')
-  const [frameCount, setFrameCount] = useState(0)
+  const [stamp, setStamp] = useState(getTimestampState)
 
   useEffect(() => {
-    const tick = () => {
-      const now = new Date()
-      const h = String(now.getHours()).padStart(2, '0')
-      const m = String(now.getMinutes()).padStart(2, '0')
-      const s = String(now.getSeconds()).padStart(2, '0')
-      const ms = String(now.getMilliseconds()).padStart(3, '0').slice(0, 2)
-      setTime(`${h}:${m}:${s}:${ms}`)
-
-      const yr = now.getFullYear()
-      const mo = String(now.getMonth() + 1).padStart(2, '0')
-      const d = String(now.getDate()).padStart(2, '0')
-      setDate(`${d}/${mo}/${yr}`)
-      setFrameCount((f) => (f + 1) % 30)
-    }
-
+    const tick = () => setStamp(getTimestampState())
     tick()
-    const id = setInterval(tick, 33)
-    return () => clearInterval(id)
+    const id = window.setInterval(tick, 1000)
+    return () => window.clearInterval(id)
   }, [])
 
   return (
@@ -66,14 +66,14 @@ export default function TimestampOverlay({
 
       {/* Bottom-left: date */}
       <div className="absolute bottom-2 left-2 z-20">
-        <div className="timestamp-overlay">{date}</div>
+        <div className="timestamp-overlay">{stamp.date}</div>
       </div>
 
       {/* Bottom-right: time + frame number */}
       <div className="absolute bottom-2 right-2 z-20 text-right">
-        <div className="timestamp-overlay">{time}</div>
+        <div className="timestamp-overlay">{stamp.time}</div>
         <div className="timestamp-overlay" style={{ fontSize: '9px', color: palette.primaryDim, opacity: 0.7 }}>
-          F:{String(frameCount).padStart(2, '0')}
+          F:{String(stamp.frameCount).padStart(2, '0')}
         </div>
       </div>
     </>
