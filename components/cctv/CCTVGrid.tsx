@@ -37,7 +37,7 @@ const makeDefaultCamera = (id: number): CameraConfig => ({
   videoUrl: null,
   aspectRatio: 'auto',
   brightness: 100,
-  contrast: 110,
+  contrast: 100,
   fisheye: false,
   noiseIntensity: 40,
 })
@@ -67,6 +67,7 @@ interface SortableCellProps {
   showSettings: boolean
   onSettingsToggle: () => void
   onSettingsClose: () => void
+  performanceMode: boolean
 }
 
 function SortableCell({
@@ -76,6 +77,7 @@ function SortableCell({
   showSettings,
   onSettingsToggle,
   onSettingsClose,
+  performanceMode,
 }: SortableCellProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: config.id,
@@ -105,6 +107,7 @@ function SortableCell({
           config={config}
           isFullscreen={isFullscreen}
           onConfigChange={onConfigChange}
+          performanceMode={performanceMode}
         />
       </div>
 
@@ -175,9 +178,8 @@ export default function CCTVGrid({
     : { cols: globalGridConfig.cols, rows: globalGridConfig.rows }
 
   const totalCells = cols * rows
+  const performanceMode = totalCells >= 9
 
-  // Auto-assign only the currently visible folder videos to cameras.
-  // Reuse object URLs per File instead of recreating/reloading them on every render/reorder.
   useEffect(() => {
     const cache = objectUrlCacheRef.current
     const visibleFiles = folderVideos.slice(0, totalCells)
@@ -234,6 +236,7 @@ export default function CCTVGrid({
 
   const activeCameras = cameras.slice(0, totalCells)
   const ids = activeCameras.map((c) => c.id)
+  const gridClassName = performanceMode ? undefined : 'crt-flicker'
 
   const gridStyle: React.CSSProperties = {
     display: 'grid',
@@ -247,11 +250,16 @@ export default function CCTVGrid({
 
   if (!mounted) {
     return (
-      <div style={gridStyle} className="crt-flicker">
+      <div style={gridStyle} className={gridClassName} data-performance-mode={performanceMode ? 'true' : 'false'}>
         {activeCameras.map((cam) => (
           <div key={cam.id} style={{ position: 'relative', overflow: 'hidden' }} className="camera-cell">
             <div className="absolute inset-0">
-              <VideoCell config={cam} isFullscreen={isFullscreen} onConfigChange={handleConfigChange} />
+              <VideoCell
+                config={cam}
+                isFullscreen={isFullscreen}
+                onConfigChange={handleConfigChange}
+                performanceMode={performanceMode}
+              />
             </div>
           </div>
         ))}
@@ -262,7 +270,7 @@ export default function CCTVGrid({
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={ids} strategy={rectSortingStrategy}>
-        <div style={gridStyle} className="crt-flicker">
+        <div style={gridStyle} className={gridClassName} data-performance-mode={performanceMode ? 'true' : 'false'}>
           {activeCameras.map((cam) => (
             <SortableCell
               key={cam.id}
@@ -274,6 +282,7 @@ export default function CCTVGrid({
                 setOpenSettings((prev) => (prev === cam.id ? null : cam.id))
               }
               onSettingsClose={() => setOpenSettings(null)}
+              performanceMode={performanceMode}
             />
           ))}
         </div>
