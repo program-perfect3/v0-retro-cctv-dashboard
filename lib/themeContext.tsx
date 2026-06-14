@@ -19,6 +19,8 @@ export interface ThemeSettings {
   locale: Locale
   gridGap: number          // 0 – 6 px
   timestampVisible: boolean
+  clockBaseTimeMs: number | null
+  clockBaseRealMs: number | null
 }
 
 const DEFAULTS: ThemeSettings = {
@@ -32,6 +34,15 @@ const DEFAULTS: ThemeSettings = {
   locale: 'ru',
   gridGap: 2,
   timestampVisible: true,
+  clockBaseTimeMs: null,
+  clockBaseRealMs: null,
+}
+
+export function getCctvNow(settings: ThemeSettings) {
+  if (settings.clockBaseTimeMs !== null && settings.clockBaseRealMs !== null) {
+    return new Date(settings.clockBaseTimeMs + (Date.now() - settings.clockBaseRealMs))
+  }
+  return new Date()
 }
 
 // ----------------------------------------------------------------
@@ -49,7 +60,7 @@ export const THEME_PALETTES: Record<ThemeColor, {
   border: string
   borderDim: string
   textGlow: string
-  amberHue: number   // used for timestamp + accent
+  amberHue: number
 }> = {
   green: {
     hue: 145,
@@ -162,6 +173,11 @@ export const TRANSLATIONS = {
     rec: 'REC',
     settingsTitle: 'PERSONALIZATION',
     colorTheme: 'COLOR THEME',
+    clockTitle: 'CLOCK / TIMECODE',
+    clockDate: 'DATE',
+    clockTime: 'TIME',
+    clockNow: 'NOW',
+    clockReset: 'REAL',
     textSize: 'TEXT SIZE',
     effects: 'EFFECTS',
     scanlines: 'SCANLINES',
@@ -216,6 +232,11 @@ export const TRANSLATIONS = {
     rec: 'ЗАП',
     settingsTitle: 'ПЕРСОНАЛИЗАЦИЯ',
     colorTheme: 'ЦВЕТОВАЯ ТЕМА',
+    clockTitle: 'ДАТА / ВРЕМЯ ОТСЧЕТА',
+    clockDate: 'ДАТА',
+    clockTime: 'ВРЕМЯ',
+    clockNow: 'СЕЙЧАС',
+    clockReset: 'РЕАЛЬНОЕ',
     textSize: 'РАЗМЕР ТЕКСТА',
     effects: 'ЭФФЕКТЫ',
     scanlines: 'СТРОЧНАЯ РАЗВЕРТКА',
@@ -275,7 +296,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const palette: AnyPalette = THEME_PALETTES[settings.color]
   const t: AnyTranslation = TRANSLATIONS[settings.locale]
 
-  // Apply CSS custom properties to :root
   useEffect(() => {
     const root = document.documentElement
     root.style.setProperty('--background',        palette.bg)
