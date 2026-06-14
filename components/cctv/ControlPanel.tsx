@@ -41,7 +41,6 @@ export default function ControlPanel({
   const [allFiles, setAllFiles] = useState<File[]>([])
   const [showFileList, setShowFileList] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
-  // Custom grid inputs
   const [customCols, setCustomCols] = useState(String(gridConfig.cols || 2))
   const [customRows, setCustomRows] = useState(String(gridConfig.rows || 2))
 
@@ -52,7 +51,6 @@ export default function ControlPanel({
     const videoFiles = files
       .filter((f) => f.type.startsWith('video/') || /\.(mp4|webm|mov|avi|mkv|ogv|m4v|ts)$/i.test(f.name))
       .sort((a, b) => {
-        // Natural sort: file_001 < file_002 etc.
         const ap = (f: File) => (f as { webkitRelativePath?: string }).webkitRelativePath || f.name
         return ap(a).localeCompare(ap(b), undefined, { numeric: true, sensitivity: 'base' })
       })
@@ -92,8 +90,8 @@ export default function ControlPanel({
     <div
       className="border-t flex-shrink-0 overflow-hidden"
       style={{
-        borderColor: 'oklch(0.2 0.05 145)',
-        background: 'oklch(0.065 0.005 200)',
+        borderColor: palette.border,
+        background: palette.bg,
         maxHeight: collapsed ? '36px' : '220px',
         transition: 'max-height 0.25s ease',
       }}
@@ -101,7 +99,7 @@ export default function ControlPanel({
       {/* Panel toggle bar */}
       <div
         className="flex items-center justify-between px-3 cursor-pointer border-b select-none"
-        style={{ borderColor: 'oklch(0.16 0.04 145)', height: '36px' }}
+        style={{ borderColor: palette.borderDim, height: '36px' }}
         onClick={() => setCollapsed((c) => !c)}
       >
         <div className="flex items-center gap-3">
@@ -114,7 +112,7 @@ export default function ControlPanel({
         </div>
         <div className="flex items-center gap-4">
           {folderVideos.length > 0 && (
-            <span style={{ fontSize: '8px', letterSpacing: '0.08em', color: 'oklch(0.62 0.17 75)' }}>
+            <span style={{ fontSize: '8px', letterSpacing: '0.08em', color: palette.primary }}>
               [{folderVideos.length} FILES]
             </span>
           )}
@@ -171,7 +169,7 @@ export default function ControlPanel({
                 maxLength={1}
                 title="Columns (1–8)"
               />
-              <span style={{ fontSize: '10px', color: 'oklch(0.42 0.08 145)' }}>×</span>
+              <span style={{ fontSize: '10px', color: palette.primaryDim }}>×</span>
               <input
                 className="cctv-input"
                 style={{ width: '36px', padding: '2px 5px', fontSize: '10px', textAlign: 'center' }}
@@ -218,13 +216,13 @@ export default function ControlPanel({
               {folderPath ? (
                 <span
                   className="cctv-input truncate"
-                  style={{ flex: 1, display: 'flex', alignItems: 'center', fontSize: '9px', padding: '2px 6px', cursor: 'default', color: 'oklch(0.6 0.14 75)' }}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', fontSize: '9px', padding: '2px 6px', cursor: 'default', color: palette.primary }}
                   title={folderPath}
                 >
                   {folderPath}
                 </span>
               ) : (
-                <span style={{ flex: 1, fontSize: '8px', color: 'oklch(0.32 0.06 145)', letterSpacing: '0.08em' }}>
+                <span style={{ flex: 1, fontSize: '8px', color: palette.primaryFaint, letterSpacing: '0.08em' }}>
                   {t.noFolder}
                 </span>
               )}
@@ -256,8 +254,8 @@ export default function ControlPanel({
                 className="overflow-y-auto"
                 style={{
                   maxHeight: '72px',
-                  border: '1px solid oklch(0.18 0.04 145)',
-                  background: 'oklch(0.05 0.003 200)',
+                  border: `1px solid ${palette.borderDim}`,
+                  background: palette.bg,
                 }}
               >
                 {filteredFiles.map((file, idx) => {
@@ -272,20 +270,20 @@ export default function ControlPanel({
                         fontSize: '8px',
                         letterSpacing: '0.04em',
                         color: globalIdx === 0
-                          ? 'oklch(0.82 0.2 75)'
+                          ? palette.primary
                           : isActive
-                          ? 'oklch(0.55 0.12 145)'
-                          : 'oklch(0.32 0.06 145)',
-                        borderBottom: '1px solid oklch(0.12 0.02 145)',
-                        background: globalIdx === 0 ? 'oklch(0.08 0.004 75 / 0.3)' : undefined,
+                          ? palette.primaryDim
+                          : palette.primaryFaint,
+                        borderBottom: `1px solid ${palette.borderDim}`,
+                        background: globalIdx === 0 ? `${palette.primary}14` : undefined,
                       }}
                     >
-                      <span style={{ color: 'oklch(0.38 0.07 145)', minWidth: '28px' }}>
+                      <span style={{ color: palette.primaryFaint, minWidth: '28px' }}>
                         {String(globalIdx + 1).padStart(3, '0')}
                       </span>
                       <span className="truncate flex-1" title={file.name}>{file.name}</span>
                       {isActive && (
-                        <span style={{ color: 'oklch(0.55 0.15 145)', flexShrink: 0 }}>
+                        <span style={{ color: palette.primary, flexShrink: 0 }}>
                           CAM{String(globalIdx + 1).padStart(2, '0')}
                         </span>
                       )}
@@ -305,7 +303,7 @@ export default function ControlPanel({
             >
               <span>{t.grid} {gridConfig.layout === 'auto' ? 'AUTO' : `${gridConfig.cols}×${gridConfig.rows}`}</span>
               <span>{t.cams} <span className="crt-text">{cameraCount}</span></span>
-              <span>{t.files} <span style={{ color: 'oklch(0.62 0.17 75)' }}>{folderVideos.length}</span></span>
+              <span>{t.files} <span style={{ color: palette.primary }}>{folderVideos.length}</span></span>
               <span style={{ color: noSignalCount > 0 ? 'oklch(0.65 0.2 25)' : palette.primaryDim }}>
                 {noSignalCount > 0 ? `${noSignalCount}× ${t.noSig}` : t.allAssigned}
               </span>
