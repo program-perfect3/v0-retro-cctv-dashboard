@@ -40,8 +40,6 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
   const { settings, palette } = useTheme()
   const videoRef = useRef<HTMLVideoElement>(null)
   const cellRef = useRef<HTMLDivElement>(null)
-  const lastPlaybackTimeRef = useRef<number | null>(null)
-  const stalledTicksRef = useRef(0)
   const [loaded, setLoaded] = useState(false)
   const [glitchActive, setGlitchActive] = useState(false)
   const [glitchStyle, setGlitchStyle] = useState<React.CSSProperties>({})
@@ -51,106 +49,50 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
 
   useEffect(() => {
     const v = videoRef.current
+    setLoaded(false)
 
-    if (!config.videoUrl || !v) {
-      setLoaded(false)
-      lastPlaybackTimeRef.current = null
-      stalledTicksRef.current = 0
-      return
-    }
+    if (!config.videoUrl || !v) return
 
     let cancelled = false
-    let watchdogId: number | null = null
+    let playTimer: number | null = null
 
-    const forcePlayback = async () => {
+    v.muted = true
+    v.defaultMuted = true
+    v.loop = true
+    v.playsInline = true
+    v.controls = false
+    v.disablePictureInPicture = true
+
+    const playVideo = () => {
+      if (cancelled || document.hidden) return
+      void v.play().catch(() => {})
+    }
+
+    const markLoaded = () => {
       if (cancelled) return
-
-      v.muted = true
-      v.defaultMuted = true
-      v.loop = true
-      v.playsInline = true
-      v.preload = 'auto'
-      v.controls = false
-      v.disablePictureInPicture = true
-
-      try {
-        await v.play()
-        if (!cancelled) setLoaded(true)
-      } catch {
-        // Autoplay can still be temporarily blocked while the file is decoding.
-      }
+      setLoaded(true)
+      playVideo()
     }
 
-    setLoaded(false)
-    lastPlaybackTimeRef.current = null
-    stalledTicksRef.current = 0
-    v.pause()
-    v.src = config.videoUrl
-    v.load()
-
-    const handleReady = () => {
-      void forcePlayback()
+    const handleVisibilityChange = () => {
+      if (!document.hidden) playVideo()
     }
 
-    const handlePlaybackProgress = () => {
-      lastPlaybackTimeRef.current = v.currentTime
-      stalledTicksRef.current = 0
-      if (!cancelled) setLoaded(true)
-    }
+    v.addEventListener('loadeddata', markLoaded)
+    v.addEventListener('canplay', markLoaded)
+    v.addEventListener('playing', markLoaded)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    watchdogId = window.setInterval(() => {
-      if (cancelled || document.hidden || !config.videoUrl) return
-
-      if (v.paused || v.ended) {
-        void forcePlayback()
-        return
-      }
-
-      const current = v.currentTime
-      const previous = lastPlaybackTimeRef.current
-
-      if (previous !== null && v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-        const hasAdvanced = Math.abs(current - previous) > 0.01
-
-        if (!hasAdvanced && !v.seeking) stalledTicksRef.current += 1
-        else stalledTicksRef.current = 0
-
-        if (stalledTicksRef.current >= 2) {
-          stalledTicksRef.current = 0
-          try {
-            if (Number.isFinite(v.duration) && v.duration > current + 0.05) {
-              v.currentTime = current + 0.05
-            }
-          } catch {
-            // Some codecs/streams do not allow precise seeks.
-          }
-          void forcePlayback()
-        }
-      }
-
-      lastPlaybackTimeRef.current = current
-    }, 3000)
-
-    v.addEventListener('loadeddata', handleReady)
-    v.addEventListener('canplay', handleReady)
-    v.addEventListener('canplaythrough', handleReady)
-    v.addEventListener('playing', handlePlaybackProgress)
-    v.addEventListener('timeupdate', handlePlaybackProgress)
-    v.addEventListener('stalled', handleReady)
-    v.addEventListener('waiting', handleReady)
-
-    void forcePlayback()
+    playTimer = window.setTimeout(playVideo, 0)
 
     return () => {
       cancelled = true
-      if (watchdogId !== null) window.clearInterval(watchdogId)
-      v.removeEventListener('loadeddata', handleReady)
-      v.removeEventListener('canplay', handleReady)
-      v.removeEventListener('canplaythrough', handleReady)
-      v.removeEventListener('playing', handlePlaybackProgress)
-      v.removeEventListener('timeupdate', handlePlaybackProgress)
-      v.removeEventListener('stalled', handleReady)
-      v.removeEventListener('waiting', handleReady)
+      if (playTimer !== null) window.clearTimeout(playTimer)
+      v.removeEventListener('loadeddata', markLoaded)
+      v.removeEventListener('canplay', markLoaded)
+      v.removeEventListener('playing', markLoaded)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      v.pause()
     }
   }, [config.videoUrl])
 
@@ -276,22 +218,22 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
           <>
             <video
               ref={videoRef}
+              src={config.videoUrl ?? undefined}
               autoPlay
               loop
               muted
               defaultMuted
               playsInline
-              preload="auto"
+              preload={performanceMode ? 'metadata' : 'auto'}
               disablePictureInPicture
               controls={false}
-              controlsList="nodownload noplaybackrate noremoteplayback"
               onLoadedData={() => setLoaded(true)}
               onCanPlay={() => {
                 setLoaded(true)
                 void videoRef.current?.play().catch(() => {})
               }}
-              onStalled={() => void videoRef.current?.play().catch(() => {})}
-              onWaiting={() => void videoRef.current?.play().catch(() => {})}
+              onPlaying={() => setLoaded(true)}
+              onError={() => setLoaded(false)}
               className={`absolute inset-0 w-full h-full ${loaded ? 'video-fade-in' : 'opacity-0'}`}
               style={{
                 objectFit: 'cover',
