@@ -48,24 +48,36 @@ export default function CCTVHeader({
 
   if (isFullscreen) return null
 
+  const title = settings.customSystemTitle.trim() || t.systemTitle
+  const subtitle = settings.customSystemSub.trim() || t.systemSub
+
+  const headerBackground =
+    settings.cameraSceneStyle === 'hq'
+      ? 'linear-gradient(90deg, oklch(0.055 0.012 240), oklch(0.09 0.018 240))'
+      : settings.cameraSceneStyle === 'police'
+      ? 'linear-gradient(90deg, oklch(0.05 0.01 240), oklch(0.055 0.015 25))'
+      : settings.cameraSceneStyle === 'privateHouse'
+      ? 'linear-gradient(90deg, oklch(0.075 0.004 80), oklch(0.05 0.003 200))'
+      : palette.bgCard
+
   return (
     <header
       className="flex items-center justify-between px-4 py-2 border-b scanlines"
       style={{
         borderColor: palette.border,
-        background: palette.bgCard,
-        minHeight: '42px',
+        background: headerBackground,
+        minHeight: settings.cameraSceneStyle === 'privateHouse' ? '38px' : '42px',
         position: 'relative',
         overflow: 'hidden',
       }}
     >
       <div className="flex items-center gap-4">
         <div className="flex flex-col leading-none">
-          <span className="crt-text" style={{ fontSize: '14px', letterSpacing: '0.2em', fontWeight: 'bold' }}>
-            {t.systemTitle}
+          <span className="crt-text" style={{ fontSize: settings.cameraSceneStyle === 'privateHouse' ? '12px' : '14px', letterSpacing: '0.2em', fontWeight: 'bold' }}>
+            {title}
           </span>
           <span style={{ fontSize: '8px', letterSpacing: '0.25em', color: palette.primaryDim }}>
-            {t.systemSub}
+            {subtitle}
           </span>
         </div>
 
@@ -81,25 +93,29 @@ export default function CCTVHeader({
           </span>
         </div>
 
-        <div className="hidden lg:flex items-center gap-3">
-          <StatusPill label={t.online} active={true} color="theme" glow={settings.glow} palette={palette} />
-          <StatusPill label={`${activeCount}/${cameraCount} CAM`} active={true} color="theme" glow={settings.glow} palette={palette} />
-          <StatusPill label={t.rec} active={true} color="red" blink glow={settings.glow} palette={palette} />
-        </div>
+        {settings.showStatusPills && (
+          <div className="hidden lg:flex items-center gap-3">
+            <StatusPill label={t.online} active={true} color="theme" glow={settings.glow} palette={palette} />
+            <StatusPill label={`${activeCount}/${cameraCount} CAM`} active={true} color="theme" glow={settings.glow} palette={palette} />
+            <StatusPill label={t.rec} active={true} color="red" blink glow={settings.glow} palette={palette} />
+          </div>
+        )}
       </div>
 
-      <div
-        className="hidden md:block flex-1 mx-4 overflow-hidden"
-        style={{
-          height: '18px',
-          borderTop: `1px solid ${palette.borderDim}`,
-          borderBottom: `1px solid ${palette.borderDim}`,
-        }}
-      >
-        <div className="ticker" style={{ fontSize: '9px', letterSpacing: '0.1em', color: palette.primaryDim, lineHeight: '18px' }}>
-          {t.tickerFull}
+      {settings.showTicker && (
+        <div
+          className="hidden md:block flex-1 mx-4 overflow-hidden"
+          style={{
+            height: '18px',
+            borderTop: `1px solid ${palette.borderDim}`,
+            borderBottom: `1px solid ${palette.borderDim}`,
+          }}
+        >
+          <div className="ticker" style={{ fontSize: '9px', letterSpacing: '0.1em', color: palette.primaryDim, lineHeight: '18px' }}>
+            {t.tickerFull}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="flex items-center gap-2">
         <div className="text-right hidden sm:block">
