@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import type { GridLayout, GridConfig } from './CCTVGrid'
-import { useTheme } from '@/lib/themeContext'
+import { useTheme, type CameraSceneStyle, type ThemeColor } from '@/lib/themeContext'
 // GridConfig is re-exported for page-level consumption
 export type { GridConfig }
 
@@ -15,6 +15,88 @@ const GRID_PRESETS: { layout: GridLayout; label: string; cols: number; rows: num
   { layout: '4x3', cols: 4, rows: 3, label: '4×3' },
   { layout: '4x4', cols: 4, rows: 4, label: '4×4' },
   { layout: 'auto', cols: 0, rows: 0, label: 'AUTO' },
+]
+
+const SCENE_PRESETS: {
+  style: CameraSceneStyle
+  labelRu: string
+  labelEn: string
+  color: ThemeColor
+  title: string
+  sub: string
+  panelTitle: string
+  panelVer: string
+  scanlines: boolean
+  noise: boolean
+  glow: boolean
+  flicker: boolean
+  vignette: boolean
+  gridGap: number
+}[] = [
+  {
+    style: 'guard',
+    labelRu: 'ОХРАННИК',
+    labelEn: 'GUARD',
+    color: 'green',
+    title: 'ПОСТ ОХРАНЫ',
+    sub: 'АНАЛОГОВЫЙ DVR / КОМНАТА ОХРАНЫ',
+    panelTitle: 'ПАНЕЛЬ ПОСТА ОХРАНЫ',
+    panelVer: 'DVR-90',
+    scanlines: true,
+    noise: true,
+    glow: true,
+    flicker: true,
+    vignette: true,
+    gridGap: 2,
+  },
+  {
+    style: 'hq',
+    labelRu: 'ШТАБ',
+    labelEn: 'HQ',
+    color: 'blue',
+    title: 'ОПЕРАТИВНЫЙ ШТАБ',
+    sub: 'TACTICAL CCTV NODE / LIVE GRID',
+    panelTitle: 'ШТАБНОЙ МОНИТОРИНГ',
+    panelVer: 'TAC-2.7',
+    scanlines: false,
+    noise: false,
+    glow: true,
+    flicker: false,
+    vignette: false,
+    gridGap: 1,
+  },
+  {
+    style: 'police',
+    labelRu: 'ПОЛИЦИЯ',
+    labelEn: 'POLICE',
+    color: 'white',
+    title: 'ДЕЖУРНАЯ ЧАСТЬ',
+    sub: 'ПОЛИЦИЯ / ГОРОДСКИЕ КАМЕРЫ',
+    panelTitle: 'ПУЛЬТ ДЕЖУРНОГО',
+    panelVer: 'УВД-4.1',
+    scanlines: true,
+    noise: false,
+    glow: false,
+    flicker: false,
+    vignette: true,
+    gridGap: 3,
+  },
+  {
+    style: 'privateHouse',
+    labelRu: 'ЧАСТНЫЙ ДОМ',
+    labelEn: 'PRIVATE',
+    color: 'amber',
+    title: 'HOME SECURITY',
+    sub: 'PRIVATE HOUSE CAMERA SYSTEM',
+    panelTitle: 'HOME CAM CONTROL',
+    panelVer: 'HC-1.2',
+    scanlines: true,
+    noise: true,
+    glow: false,
+    flicker: false,
+    vignette: true,
+    gridGap: 4,
+  },
 ]
 
 interface ControlPanelProps {
@@ -34,7 +116,7 @@ export default function ControlPanel({
   onFolderLoad,
   cameraCount,
 }: ControlPanelProps) {
-  const { t, palette } = useTheme()
+  const { t, palette, settings, update } = useTheme()
   const folderInputRef = useRef<HTMLInputElement>(null)
   const [folderPath, setFolderPath] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -84,7 +166,37 @@ export default function ControlPanel({
     setCustomRows(String(r))
   }
 
+  const applyScenePreset = (preset: typeof SCENE_PRESETS[number]) => {
+    update({
+      cameraSceneStyle: preset.style,
+      color: preset.color,
+      customSystemTitle: preset.title,
+      customSystemSub: preset.sub,
+      customPanelTitle: preset.panelTitle,
+      customPanelVer: preset.panelVer,
+      scanlines: preset.scanlines,
+      noise: preset.noise,
+      glow: preset.glow,
+      flicker: preset.flicker,
+      vignette: preset.vignette,
+      gridGap: preset.gridGap,
+      timestampVisible: true,
+    })
+  }
+
+  const Toggle = ({ label, value, onChange }: { label: string; value: boolean; onChange: () => void }) => (
+    <button
+      className={`cctv-btn ${value ? 'cctv-btn-amber' : ''}`}
+      style={{ padding: '2px 7px', fontSize: '8px' }}
+      onClick={onChange}
+    >
+      {label}: {value ? 'ON' : 'OFF'}
+    </button>
+  )
+
   const noSignalCount = Math.max(0, cameraCount - folderVideos.length)
+  const panelTitle = settings.customPanelTitle.trim() || t.panelTitle
+  const panelVer = settings.customPanelVer.trim() || t.panelVer
 
   return (
     <div
@@ -92,7 +204,7 @@ export default function ControlPanel({
       style={{
         borderColor: palette.border,
         background: palette.bg,
-        maxHeight: collapsed ? '36px' : '220px',
+        maxHeight: collapsed ? '36px' : '310px',
         transition: 'max-height 0.25s ease',
       }}
     >
@@ -104,10 +216,13 @@ export default function ControlPanel({
       >
         <div className="flex items-center gap-3">
           <span className="crt-text" style={{ fontSize: '9px', letterSpacing: '0.18em' }}>
-            {t.panelTitle}
+            {panelTitle}
           </span>
           <span style={{ fontSize: '8px', color: palette.primaryDim, letterSpacing: '0.1em' }}>
-            {t.panelVer}
+            {panelVer}
+          </span>
+          <span style={{ fontSize: '8px', color: palette.primaryFaint, letterSpacing: '0.1em' }}>
+            [{SCENE_PRESETS.find((p) => p.style === settings.cameraSceneStyle)?.labelEn ?? settings.cameraSceneStyle.toUpperCase()}]
           </span>
         </div>
         <div className="flex items-center gap-4">
@@ -130,7 +245,7 @@ export default function ControlPanel({
       {!collapsed && (
         <div
           className="flex flex-wrap gap-x-5 gap-y-3 px-4 py-3 overflow-y-auto"
-          style={{ maxHeight: '184px' }}
+          style={{ maxHeight: '274px' }}
         >
           {/* === GRID LAYOUT === */}
           <div className="flex flex-col gap-1.5 min-w-[200px]">
@@ -188,6 +303,66 @@ export default function ControlPanel({
                 {t.set}
               </button>
             </div>
+          </div>
+
+          {/* === CAMERA SCENE STYLE === */}
+          <div className="flex flex-col gap-1.5 min-w-[250px] max-w-[290px]">
+            <div className="panel-section-title">CAMERA STYLE / SCENE</div>
+            <div className="grid grid-cols-2 gap-1">
+              {SCENE_PRESETS.map((preset) => (
+                <button
+                  key={preset.style}
+                  className={`cctv-btn ${settings.cameraSceneStyle === preset.style ? 'cctv-btn-amber' : ''}`}
+                  style={{ padding: '3px 6px', fontSize: '8px' }}
+                  onClick={() => applyScenePreset(preset)}
+                >
+                  {settings.locale === 'ru' ? preset.labelRu : preset.labelEn}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-1 pt-1">
+              <Toggle label="TOP" value={settings.showTopPanel} onChange={() => update({ showTopPanel: !settings.showTopPanel })} />
+              <Toggle label="BOTTOM" value={settings.showBottomPanel} onChange={() => update({ showBottomPanel: !settings.showBottomPanel })} />
+              <Toggle label="TICKER" value={settings.showTicker} onChange={() => update({ showTicker: !settings.showTicker })} />
+              <Toggle label="STATUS" value={settings.showStatusPills} onChange={() => update({ showStatusPills: !settings.showStatusPills })} />
+            </div>
+          </div>
+
+          {/* === TITLES === */}
+          <div className="flex flex-col gap-1.5 min-w-[250px] max-w-[300px]">
+            <div className="panel-section-title">RENAME / PANELS</div>
+            <input
+              className="cctv-input"
+              style={{ fontSize: '9px', padding: '3px 7px' }}
+              value={settings.customSystemTitle}
+              onChange={(e) => update({ customSystemTitle: e.target.value.toUpperCase() })}
+              placeholder="TOP TITLE..."
+              maxLength={32}
+            />
+            <input
+              className="cctv-input"
+              style={{ fontSize: '9px', padding: '3px 7px' }}
+              value={settings.customSystemSub}
+              onChange={(e) => update({ customSystemSub: e.target.value.toUpperCase() })}
+              placeholder="TOP SUBTITLE..."
+              maxLength={48}
+            />
+            <input
+              className="cctv-input"
+              style={{ fontSize: '9px', padding: '3px 7px' }}
+              value={settings.customPanelTitle}
+              onChange={(e) => update({ customPanelTitle: e.target.value.toUpperCase() })}
+              placeholder="BOTTOM PANEL TITLE..."
+              maxLength={32}
+            />
+            <input
+              className="cctv-input"
+              style={{ fontSize: '9px', padding: '3px 7px' }}
+              value={settings.customPanelVer}
+              onChange={(e) => update({ customPanelVer: e.target.value.toUpperCase() })}
+              placeholder="PANEL VERSION..."
+              maxLength={16}
+            />
           </div>
 
           {/* === VIDEO SOURCE === */}
@@ -304,6 +479,7 @@ export default function ControlPanel({
               <span>{t.grid} {gridConfig.layout === 'auto' ? 'AUTO' : `${gridConfig.cols}×${gridConfig.rows}`}</span>
               <span>{t.cams} <span className="crt-text">{cameraCount}</span></span>
               <span>{t.files} <span style={{ color: palette.primary }}>{folderVideos.length}</span></span>
+              <span>STYLE: <span style={{ color: palette.primary }}>{SCENE_PRESETS.find((p) => p.style === settings.cameraSceneStyle)?.labelEn}</span></span>
               <span style={{ color: noSignalCount > 0 ? 'oklch(0.65 0.2 25)' : palette.primaryDim }}>
                 {noSignalCount > 0 ? `${noSignalCount}× ${t.noSig}` : t.allAssigned}
               </span>
