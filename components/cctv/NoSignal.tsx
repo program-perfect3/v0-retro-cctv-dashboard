@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useTheme, type ThemeColor } from '@/lib/themeContext'
+import { useTheme, type CameraSceneStyle, type ThemeColor } from '@/lib/themeContext'
 
 interface NoSignalProps {
   camId: number
@@ -16,10 +16,38 @@ const STATIC_TINT: Record<ThemeColor, [number, number, number]> = {
   white: [220, 225, 230],
 }
 
+const EMPTY_COPY: Record<CameraSceneStyle, { prefix: string; detail: string; bg: string; vignette: string }> = {
+  guard: {
+    prefix: 'CH',
+    detail: 'ANALOG INPUT SEARCH',
+    bg: 'rgba(0,0,0,0.72)',
+    vignette: 'radial-gradient(ellipse at center, transparent 38%, rgba(0,0,0,0.88) 100%)',
+  },
+  hq: {
+    prefix: 'NODE',
+    detail: 'FEED UNASSIGNED',
+    bg: 'rgba(4,18,45,0.72)',
+    vignette: 'radial-gradient(ellipse at center, transparent 56%, rgba(0,16,42,0.72) 100%)',
+  },
+  police: {
+    prefix: 'КМР',
+    detail: 'КАНАЛ НЕ НАЗНАЧЕН',
+    bg: 'rgba(0,0,0,0.7)',
+    vignette: 'radial-gradient(ellipse at center, transparent 46%, rgba(0,0,0,0.82) 100%)',
+  },
+  privateHouse: {
+    prefix: 'HOME',
+    detail: 'CAMERA OFFLINE',
+    bg: 'rgba(30,20,8,0.7)',
+    vignette: 'radial-gradient(ellipse at center, transparent 44%, rgba(0,0,0,0.78) 100%)',
+  },
+}
+
 export default function NoSignal({ camId, label }: NoSignalProps) {
   const { t, palette, settings } = useTheme()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const timerRef = useRef<number | null>(null)
+  const copy = EMPTY_COPY[settings.cameraSceneStyle]
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -29,6 +57,7 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
 
     let cancelled = false
     const [tintR, tintG, tintB] = STATIC_TINT[settings.color]
+    const drawInterval = settings.cameraSceneStyle === 'hq' ? 280 : settings.cameraSceneStyle === 'privateHouse' ? 180 : 120
 
     const draw = () => {
       if (cancelled) return
@@ -52,7 +81,7 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
       ctx.putImageData(imageData, 0, 0)
 
       // Occasional horizontal sync artifact
-      if (Math.random() < 0.08) {
+      if (Math.random() < 0.08 && settings.cameraSceneStyle !== 'hq') {
         const y = Math.random() * h
         const lineH = Math.random() * 6 + 1
         ctx.fillStyle = `rgba(${tintR}, ${tintG}, ${tintB}, ${Math.random() * 0.15})`
@@ -65,7 +94,7 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
         ctx.fillRect(0, y, w, 2)
       }
 
-      timerRef.current = window.setTimeout(draw, 120)
+      timerRef.current = window.setTimeout(draw, drawInterval)
     }
 
     draw()
@@ -73,7 +102,7 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
       cancelled = true
       if (timerRef.current !== null) window.clearTimeout(timerRef.current)
     }
-  }, [settings.color])
+  }, [settings.color, settings.cameraSceneStyle])
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden select-none">
@@ -87,13 +116,16 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
 
       {/* Dark overlay vignette */}
       <div className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.85) 100%)' }}
+        style={{ background: copy.vignette }}
       />
 
       {/* Scanlines */}
       <div className="absolute inset-0 pointer-events-none"
         style={{
-          background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px)'
+          background: settings.cameraSceneStyle === 'hq'
+            ? 'linear-gradient(90deg, rgba(120,170,255,0.035) 1px, transparent 1px), linear-gradient(0deg, rgba(120,170,255,0.026) 1px, transparent 1px)'
+            : 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px)',
+          backgroundSize: settings.cameraSceneStyle === 'hq' ? '24px 24px' : undefined,
         }}
       />
 
@@ -107,6 +139,9 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
             letterSpacing: '0.2em',
             color: palette.primary,
             textShadow: settings.glow ? palette.textGlow : 'none',
+            background: copy.bg,
+            padding: '2px 8px',
+            border: settings.cameraSceneStyle === 'hq' ? `1px solid ${palette.borderDim}` : undefined,
           }}
         >
           {t.noSignal}
@@ -117,24 +152,28 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
             fontSize: 'clamp(8px, 1.2vw, 11px)',
             letterSpacing: '0.15em',
             color: palette.primaryDim,
+            background: copy.bg,
+            padding: '2px 7px',
           }}
         >
-          CH {String(camId).padStart(2, '0')} — {t.searching}
+          {copy.prefix} {String(camId).padStart(2, '0')} — {copy.detail}
         </div>
         {/* Animated bars */}
-        <div className="flex gap-1 mt-1">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              style={{
-                width: 3,
-                height: 12,
-                background: palette.primaryDim,
-                animation: `blink ${0.5 + i * 0.15}s step-end infinite`,
-              }}
-            />
-          ))}
-        </div>
+        {settings.cameraSceneStyle !== 'hq' && (
+          <div className="flex gap-1 mt-1">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                style={{
+                  width: 3,
+                  height: 12,
+                  background: palette.primaryDim,
+                  animation: `blink ${0.5 + i * 0.15}s step-end infinite`,
+                }}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Camera label bottom-left */}
@@ -143,7 +182,7 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
       </div>
 
       {/* Glitch bars */}
-      <div className="glitch-bar" />
+      {settings.cameraSceneStyle === 'guard' && <div className="glitch-bar" />}
     </div>
   )
 }
