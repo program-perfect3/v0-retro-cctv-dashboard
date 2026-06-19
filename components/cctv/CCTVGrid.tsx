@@ -153,13 +153,32 @@ export default function CCTVGrid({
 }: CCTVGridProps) {
   const { settings } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const [lowPowerDevice, setLowPowerDevice] = useState(false)
   const [cameras, setCameras] = useState<CameraConfig[]>(() =>
     Array.from({ length: 64 }, (_, i) => makeDefaultCamera(i + 1))
   )
   const [openSettings, setOpenSettings] = useState<number | null>(null)
   const objectUrlCacheRef = useRef<Map<File, string>>(new Map())
 
-  useEffect(() => { setMounted(true) }, [])
+  useEffect(() => {
+    setMounted(true)
+
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const updateLowPowerDevice = () => {
+      const cores = navigator.hardwareConcurrency ?? 8
+      setLowPowerDevice(cores <= 4 || mediaQuery.matches)
+    }
+
+    updateLowPowerDevice()
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', updateLowPowerDevice)
+      return () => mediaQuery.removeEventListener('change', updateLowPowerDevice)
+    }
+
+    mediaQuery.addListener(updateLowPowerDevice)
+    return () => mediaQuery.removeListener(updateLowPowerDevice)
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -178,7 +197,7 @@ export default function CCTVGrid({
     : { cols: globalGridConfig.cols, rows: globalGridConfig.rows }
 
   const totalCells = cols * rows
-  const performanceMode = totalCells >= 9
+  const performanceMode = totalCells >= 9 || lowPowerDevice
 
   useEffect(() => {
     const cache = objectUrlCacheRef.current
