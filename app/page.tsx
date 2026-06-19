@@ -21,7 +21,7 @@ function getAutoGrid(count: number): { cols: number; rows: number } {
 const DEFAULT_GRID: GridConfig = { layout: '2x2', cols: 2, rows: 2 }
 
 export default function CctvPage() {
-  const { settings, t, palette } = useTheme()
+  const { settings, update, palette } = useTheme()
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [gridConfig, setGridConfig] = useState<GridConfig>(DEFAULT_GRID)
@@ -72,6 +72,8 @@ export default function CctvPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [isFullscreen])
 
+  const hiddenPanelCount = Number(!settings.showTopPanel) + Number(!settings.showBottomPanel)
+
   return (
     <div
       className="flex flex-col"
@@ -96,26 +98,32 @@ export default function CctvPage() {
       />
 
       {/* Global scanlines */}
-      <div
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 98,
-          background:
-            'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px)',
-          pointerEvents: 'none',
-        }}
-      />
+      {settings.scanlines && settings.cameraSceneStyle !== 'hq' && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 98,
+            background:
+              settings.cameraSceneStyle === 'privateHouse'
+                ? 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.035) 3px, rgba(0,0,0,0.035) 5px)'
+                : 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px)',
+            pointerEvents: 'none',
+          }}
+        />
+      )}
 
       {/* Header */}
-      <CCTVHeader
-        isFullscreen={isFullscreen}
-        onFullscreenToggle={handleFullscreenToggle}
-        cameraCount={cameraCount}
-        activeCount={activeCount}
-        onSettingsToggle={() => setShowSettings((s) => !s)}
-        settingsOpen={showSettings}
-      />
+      {settings.showTopPanel && (
+        <CCTVHeader
+          isFullscreen={isFullscreen}
+          onFullscreenToggle={handleFullscreenToggle}
+          cameraCount={cameraCount}
+          activeCount={activeCount}
+          onSettingsToggle={() => setShowSettings((s) => !s)}
+          settingsOpen={showSettings}
+        />
+      )}
 
       {/* Settings panel — slide in from right, hidden in fullscreen */}
       {showSettings && !isFullscreen && (
@@ -135,6 +143,42 @@ export default function CctvPage() {
         </div>
       )}
 
+      {/* Recovery controls when panels are hidden */}
+      {!isFullscreen && hiddenPanelCount > 0 && (
+        <div
+          className="fixed right-3 top-3 z-[260] flex gap-1.5"
+          style={{ fontFamily: 'var(--font-share-tech-mono), monospace' }}
+        >
+          {!settings.showTopPanel && (
+            <button
+              className="cctv-btn"
+              style={{ fontSize: '8px', padding: '3px 7px', background: palette.bg }}
+              onClick={() => update({ showTopPanel: true })}
+            >
+              TOP
+            </button>
+          )}
+          {!settings.showBottomPanel && (
+            <button
+              className="cctv-btn"
+              style={{ fontSize: '8px', padding: '3px 7px', background: palette.bg }}
+              onClick={() => update({ showBottomPanel: true })}
+            >
+              BOTTOM
+            </button>
+          )}
+          {!settings.showTopPanel && (
+            <button
+              className="cctv-btn cctv-btn-amber"
+              style={{ fontSize: '8px', padding: '3px 7px' }}
+              onClick={() => setShowSettings((s) => !s)}
+            >
+              CFG
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Camera grid — fills all remaining space */}
       <div className="flex-1 min-h-0 overflow-hidden">
         <CCTVGrid
@@ -146,14 +190,16 @@ export default function CctvPage() {
       </div>
 
       {/* Bottom control panel */}
-      <ControlPanel
-        isFullscreen={isFullscreen}
-        gridConfig={gridConfig}
-        onGridChange={setGridConfig}
-        folderVideos={folderVideos}
-        onFolderLoad={setFolderVideos}
-        cameraCount={cameraCount}
-      />
+      {settings.showBottomPanel && (
+        <ControlPanel
+          isFullscreen={isFullscreen}
+          gridConfig={gridConfig}
+          onGridChange={setGridConfig}
+          folderVideos={folderVideos}
+          onFolderLoad={setFolderVideos}
+          cameraCount={cameraCount}
+        />
+      )}
 
       {/* Fullscreen overlay exit hint */}
       {isFullscreen && (

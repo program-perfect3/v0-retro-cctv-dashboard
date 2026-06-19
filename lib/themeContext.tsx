@@ -7,6 +7,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react'
 // ----------------------------------------------------------------
 export type ThemeColor = 'green' | 'amber' | 'red' | 'blue' | 'white'
 export type Locale = 'en' | 'ru'
+export type CameraSceneStyle = 'guard' | 'hq' | 'police' | 'privateHouse'
 
 export interface ThemeSettings {
   color: ThemeColor
@@ -21,6 +22,15 @@ export interface ThemeSettings {
   timestampVisible: boolean
   clockBaseTimeMs: number | null
   clockBaseRealMs: number | null
+  cameraSceneStyle: CameraSceneStyle
+  customSystemTitle: string
+  customSystemSub: string
+  customPanelTitle: string
+  customPanelVer: string
+  showTopPanel: boolean
+  showBottomPanel: boolean
+  showTicker: boolean
+  showStatusPills: boolean
 }
 
 const DEFAULTS: ThemeSettings = {
@@ -36,6 +46,15 @@ const DEFAULTS: ThemeSettings = {
   timestampVisible: true,
   clockBaseTimeMs: null,
   clockBaseRealMs: null,
+  cameraSceneStyle: 'guard',
+  customSystemTitle: '',
+  customSystemSub: '',
+  customPanelTitle: '',
+  customPanelVer: '',
+  showTopPanel: true,
+  showBottomPanel: true,
+  showTicker: true,
+  showStatusPills: true,
 }
 
 export function getCctvNow(settings: ThemeSettings) {
@@ -314,7 +333,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     root.style.setProperty('--crt-text-glow',     palette.textGlow)
     root.style.setProperty('--theme-text-scale',  `${settings.textScale}%`)
     root.style.setProperty('--grid-gap',          `${settings.gridGap}px`)
-  }, [settings.color, settings.textScale, settings.gridGap, palette])
+    root.dataset.cameraStyle = settings.cameraSceneStyle
+  }, [settings.color, settings.textScale, settings.gridGap, settings.cameraSceneStyle, palette])
 
   return (
     <ThemeContext.Provider value={{ settings, update, t, palette }}>

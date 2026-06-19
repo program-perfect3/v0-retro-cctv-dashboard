@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import NoSignal from './NoSignal'
 import TimestampOverlay from './TimestampOverlay'
-import { useTheme } from '@/lib/themeContext'
+import { useTheme, type CameraSceneStyle } from '@/lib/themeContext'
 
 export type AspectRatioOption = '16/9' | '4/3' | '1/1' | '3/2' | '9/16' | 'auto'
 
@@ -36,6 +36,63 @@ const AR_MAP: Record<AspectRatioOption, [number, number] | null> = {
   '9/16': [9, 16],
 }
 
+const SCENE_LOOK: Record<CameraSceneStyle, {
+  border: string
+  radius: number
+  bg: string
+  video: string
+  tint: string
+  scanline: string
+  noise: number
+  vignette: string
+  shadow: string
+}> = {
+  guard: {
+    border: '1px solid color-mix(in oklch, var(--primary) 42%, black)',
+    radius: 0,
+    bg: 'oklch(0.018 0.004 145)',
+    video: 'contrast(1.08) saturate(0.82) sepia(0.12)',
+    tint: 'linear-gradient(90deg, rgba(0,255,120,0.03), transparent 50%, rgba(0,255,120,0.02))',
+    scanline: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px)',
+    noise: 0.14,
+    vignette: 'radial-gradient(ellipse at center, transparent 42%, rgba(0,0,0,0.76) 100%)',
+    shadow: 'inset 0 0 28px rgba(0,0,0,0.72)',
+  },
+  hq: {
+    border: '1px solid color-mix(in oklch, var(--primary) 58%, black)',
+    radius: 2,
+    bg: 'oklch(0.02 0.008 240)',
+    video: 'contrast(1.16) saturate(1.05)',
+    tint: 'linear-gradient(135deg, rgba(80,140,255,0.06), transparent 48%, rgba(255,255,255,0.02))',
+    scanline: 'linear-gradient(90deg, rgba(120,170,255,0.035) 1px, transparent 1px), linear-gradient(0deg, rgba(120,170,255,0.026) 1px, transparent 1px)',
+    noise: 0.035,
+    vignette: 'radial-gradient(ellipse at center, transparent 60%, rgba(0,16,42,0.48) 100%)',
+    shadow: 'inset 0 0 14px rgba(0,0,0,0.35)',
+  },
+  police: {
+    border: '1px solid color-mix(in oklch, var(--primary) 45%, oklch(0.32 0.13 25))',
+    radius: 0,
+    bg: 'oklch(0.024 0.004 220)',
+    video: 'contrast(1.22) saturate(0.55) grayscale(0.22)',
+    tint: 'linear-gradient(90deg, rgba(40,90,255,0.03), transparent 50%, rgba(255,40,40,0.03))',
+    scanline: 'repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(0,0,0,0.12) 3px, rgba(0,0,0,0.12) 5px)',
+    noise: 0.07,
+    vignette: 'radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.68) 100%)',
+    shadow: 'inset 0 0 22px rgba(0,0,0,0.62)',
+  },
+  privateHouse: {
+    border: '1px solid color-mix(in oklch, var(--primary) 28%, black)',
+    radius: 6,
+    bg: 'oklch(0.032 0.006 70)',
+    video: 'contrast(0.96) saturate(0.86) sepia(0.18) brightness(1.03)',
+    tint: 'linear-gradient(135deg, rgba(255,200,90,0.04), transparent 52%, rgba(255,255,255,0.012))',
+    scanline: 'repeating-linear-gradient(0deg, transparent, transparent 4px, rgba(0,0,0,0.075) 4px, rgba(0,0,0,0.075) 6px)',
+    noise: 0.1,
+    vignette: 'radial-gradient(ellipse at center, transparent 48%, rgba(0,0,0,0.66) 100%)',
+    shadow: 'inset 0 0 20px rgba(0,0,0,0.58)',
+  },
+}
+
 export default function VideoCell({ config, isFullscreen, onConfigChange, performanceMode = false }: VideoCellProps) {
   const { settings, palette } = useTheme()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -46,6 +103,7 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
   const [cellSize, setCellSize] = useState<{ w: number; h: number } | null>(null)
 
   const visualEffectsEnabled = !performanceMode
+  const scene = SCENE_LOOK[settings.cameraSceneStyle]
 
   useEffect(() => {
     const v = videoRef.current
@@ -109,7 +167,7 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
   }, [])
 
   useEffect(() => {
-    if (!visualEffectsEnabled) return
+    if (!visualEffectsEnabled || settings.cameraSceneStyle === 'hq' || settings.cameraSceneStyle === 'privateHouse') return
 
     let timer: ReturnType<typeof setTimeout>
     let shortTimer: ReturnType<typeof setTimeout> | null = null
@@ -136,7 +194,7 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
       clearTimeout(timer)
       if (shortTimer) clearTimeout(shortTimer)
     }
-  }, [palette.primary, visualEffectsEnabled])
+  }, [palette.primary, settings.cameraSceneStyle, visualEffectsEnabled])
 
   const hasVideo = !!config.videoUrl
 
@@ -144,13 +202,12 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
     config.fisheye || config.brightness !== 100 || config.contrast !== 100
   )
 
-  const videoFilter = shouldApplyVideoFilter
-    ? [
-        `brightness(${config.brightness / 100})`,
-        `contrast(${config.contrast / 100})`,
-        config.fisheye ? 'saturate(0.8)' : '',
-      ].filter(Boolean).join(' ')
-    : undefined
+  const videoFilter = [
+    visualEffectsEnabled ? scene.video : '',
+    shouldApplyVideoFilter ? `brightness(${config.brightness / 100})` : '',
+    shouldApplyVideoFilter ? `contrast(${config.contrast / 100})` : '',
+    shouldApplyVideoFilter && config.fisheye ? 'saturate(0.8)' : '',
+  ].filter(Boolean).join(' ') || undefined
 
   const fisheyeId = `fisheye-${config.id}`
 
@@ -186,8 +243,14 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
     <div
       ref={cellRef}
       className="relative w-full h-full overflow-hidden bg-black group"
-      style={{ background: 'oklch(0.025 0.002 200)' }}
+      style={{
+        background: scene.bg,
+        border: scene.border,
+        borderRadius: scene.radius,
+        boxShadow: '0 0 12px rgba(0,0,0,0.55)',
+      }}
       data-performance-mode={performanceMode ? 'true' : 'false'}
+      data-camera-style={settings.cameraSceneStyle}
     >
       {config.fisheye && visualEffectsEnabled && (
         <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
@@ -240,6 +303,7 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
                 objectPosition: 'center',
                 filter: videoFilter,
                 willChange: performanceMode ? 'auto' : 'transform, opacity',
+                borderRadius: scene.radius,
                 ...(config.fisheye && visualEffectsEnabled ? {
                   transform: 'scale(1.08)',
                   borderRadius: '50%',
@@ -253,13 +317,16 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
           <NoSignal camId={config.id} label={config.label} />
         )}
 
-        <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10 }}>
+        <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 10, borderRadius: scene.radius, overflow: 'hidden' }}>
+          {visualEffectsEnabled && <div className="absolute inset-0" style={{ background: scene.tint }} />}
+
           {settings.scanlines && visualEffectsEnabled && (
             <div
               className="absolute inset-0"
               style={{
-                background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.13) 2px, rgba(0,0,0,0.13) 4px)',
-                animation: settings.flicker ? 'interlace 0.1s infinite' : 'none',
+                background: scene.scanline,
+                backgroundSize: settings.cameraSceneStyle === 'hq' ? '24px 24px' : undefined,
+                animation: settings.flicker && settings.cameraSceneStyle === 'guard' ? 'interlace 0.1s infinite' : 'none',
               }}
             />
           )}
@@ -267,15 +334,12 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
           {settings.noise && visualEffectsEnabled && config.noiseIntensity > 0 && (
             <div
               className="noise-overlay"
-              style={{ opacity: (config.noiseIntensity / 100) * 0.14 }}
+              style={{ opacity: (config.noiseIntensity / 100) * scene.noise }}
             />
           )}
 
           {settings.vignette && visualEffectsEnabled && (
-            <div
-              className="absolute inset-0"
-              style={{ background: 'radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.72) 100%)' }}
-            />
+            <div className="absolute inset-0" style={{ background: scene.vignette }} />
           )}
 
           {glitchActive && settings.flicker && visualEffectsEnabled && (
@@ -285,18 +349,13 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
           {visualEffectsEnabled && (
             <div
               className="absolute inset-0"
-              style={{
-                background: 'linear-gradient(180deg, rgba(255,255,255,0.012) 0%, transparent 3%, transparent 97%, rgba(255,255,255,0.012) 100%)',
-              }}
+              style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.012) 0%, transparent 3%, transparent 97%, rgba(255,255,255,0.012) 100%)' }}
             />
           )}
 
-          <div
-            className="absolute inset-0"
-            style={{ boxShadow: performanceMode ? 'inset 0 0 8px rgba(0,0,0,0.45)' : 'inset 0 0 24px rgba(0,0,0,0.6)' }}
-          />
+          <div className="absolute inset-0" style={{ boxShadow: performanceMode ? 'inset 0 0 8px rgba(0,0,0,0.45)' : scene.shadow }} />
 
-          {settings.flicker && visualEffectsEnabled && <div className="glitch-bar" />}
+          {settings.flicker && visualEffectsEnabled && settings.cameraSceneStyle === 'guard' && <div className="glitch-bar" />}
         </div>
 
         {hasVideo && loaded && settings.timestampVisible && (
@@ -326,7 +385,7 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
             letterSpacing: '0.15em',
             color: palette.primary,
             textShadow: settings.glow ? palette.textGlow : 'none',
-            background: 'rgba(0,0,0,0.65)',
+            background: settings.cameraSceneStyle === 'hq' ? 'rgba(7,20,45,0.75)' : 'rgba(0,0,0,0.65)',
             padding: '2px 7px',
             border: `1px solid ${palette.border}`,
             pointerEvents: 'none',
