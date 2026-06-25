@@ -117,7 +117,11 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
   void onConfigChange
 
   const visualEffectsEnabled = !performanceMode
-  const scene = SCENE_LOOK[settings.cameraSceneStyle]
+  const baseScene = SCENE_LOOK[settings.cameraSceneStyle]
+  const scene = {
+    ...baseScene,
+    bg: palette.cameraBg || baseScene.bg,
+  }
 
   useEffect(() => {
     const v = videoRef.current

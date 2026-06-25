@@ -43,11 +43,24 @@ const EMPTY_COPY: Record<CameraSceneStyle, { prefix: string; detail: string; bg:
   },
 }
 
+function hexToRgb(value: string): [number, number, number] | null {
+  const match = value.match(/^#([0-9a-f]{6})$/i)
+  if (!match) return null
+
+  const hex = match[1]
+  return [
+    parseInt(hex.slice(0, 2), 16),
+    parseInt(hex.slice(2, 4), 16),
+    parseInt(hex.slice(4, 6), 16),
+  ]
+}
+
 export default function NoSignal({ camId, label }: NoSignalProps) {
   const { t, palette, settings } = useTheme()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const timerRef = useRef<number | null>(null)
-  const copy = EMPTY_COPY[settings.cameraSceneStyle]
+  const baseCopy = EMPTY_COPY[settings.cameraSceneStyle]
+  const copy = { ...baseCopy, bg: palette.overlayBg || baseCopy.bg }
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -56,7 +69,7 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
     if (!ctx) return
 
     let cancelled = false
-    const [tintR, tintG, tintB] = STATIC_TINT[settings.color]
+    const [tintR, tintG, tintB] = hexToRgb(settings.customColors.primary) ?? STATIC_TINT[settings.color]
     const drawInterval = settings.cameraSceneStyle === 'hq' ? 280 : settings.cameraSceneStyle === 'privateHouse' ? 180 : 120
 
     const draw = () => {
@@ -102,10 +115,10 @@ export default function NoSignal({ camId, label }: NoSignalProps) {
       cancelled = true
       if (timerRef.current !== null) window.clearTimeout(timerRef.current)
     }
-  }, [settings.color, settings.cameraSceneStyle])
+  }, [settings.color, settings.customColors.primary, settings.cameraSceneStyle])
 
   return (
-    <div className="relative w-full h-full bg-black overflow-hidden select-none">
+    <div className="relative w-full h-full bg-black overflow-hidden select-none" style={{ background: palette.cameraBg || undefined }}>
       {/* Static canvas */}
       <canvas
         ref={canvasRef}

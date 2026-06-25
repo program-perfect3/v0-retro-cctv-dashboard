@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import CCTVGrid from '@/components/cctv/CCTVGrid'
 import CCTVHeader from '@/components/cctv/CCTVHeader'
 import ControlPanel from '@/components/cctv/ControlPanel'
 import ThemeSettingsPanel from '@/components/cctv/ThemeSettingsPanel'
-import { useTheme } from '@/lib/themeContext'
+import { CCTV_RESET_EVENT, useTheme } from '@/lib/themeContext'
 import type { GridConfig } from '@/components/cctv/CCTVGrid'
 
 function getAutoGrid(count: number): { cols: number; rows: number } {
@@ -19,6 +19,29 @@ function getAutoGrid(count: number): { cols: number; rows: number } {
 }
 
 const DEFAULT_GRID: GridConfig = { layout: '2x2', cols: 2, rows: 2 }
+const GRID_STORAGE_KEY = 'cctv.grid.config.v1'
+const GRID_LAYOUTS = new Set(['1x1', '2x2', '3x3', '4x4', '2x3', '3x2', '4x3', 'auto', 'custom'])
+
+function sanitizeGridConfig(value: unknown): GridConfig {
+  if (!value || typeof value !== 'object') return DEFAULT_GRID
+  const raw = value as Partial<GridConfig>
+  const cols = Math.max(1, Math.min(8, Number(raw.cols) || DEFAULT_GRID.cols))
+  const rows = Math.max(1, Math.min(8, Number(raw.rows) || DEFAULT_GRID.rows))
+  const layout = GRID_LAYOUTS.has(String(raw.layout)) ? raw.layout as GridConfig['layout'] : DEFAULT_GRID.layout
+
+  if (layout === 'auto') return { layout, cols: 0, rows: 0 }
+  return { layout, cols, rows }
+}
+
+function readStoredGridConfig(): GridConfig {
+  if (typeof window === 'undefined') return DEFAULT_GRID
+  try {
+    const raw = window.localStorage.getItem(GRID_STORAGE_KEY)
+    return raw ? sanitizeGridConfig(JSON.parse(raw)) : DEFAULT_GRID
+  } catch {
+    return DEFAULT_GRID
+  }
+}
 
 export default function CctvPage() {
   const { settings, update, palette } = useTheme()
@@ -26,6 +49,33 @@ export default function CctvPage() {
   const [showSettings, setShowSettings] = useState(false)
   const [gridConfig, setGridConfig] = useState<GridConfig>(DEFAULT_GRID)
   const [folderVideos, setFolderVideos] = useState<File[]>([])
+  const gridHydratedRef = useRef(false)
+
+  useEffect(() => {
+    gridHydratedRef.current = true
+    setGridConfig(readStoredGridConfig())
+  }, [])
+
+  useEffect(() => {
+    if (!gridHydratedRef.current) return
+    window.localStorage.setItem(GRID_STORAGE_KEY, JSON.stringify(gridConfig))
+  }, [gridConfig])
+
+  useEffect(() => {
+    const resetLocalSettings = () => {
+      window.localStorage.removeItem(GRID_STORAGE_KEY)
+      setGridConfig(DEFAULT_GRID)
+      setFolderVideos([])
+      setShowSettings(false)
+    }
+
+    window.addEventListener(CCTV_RESET_EVENT, resetLocalSettings)
+    return () => window.removeEventListener(CCTV_RESET_EVENT, resetLocalSettings)
+  }, [])
+
+  const handleGridChange = useCallback((cfg: GridConfig) => {
+    setGridConfig(sanitizeGridConfig(cfg))
+  }, [])
 
   const cameraCount =
     gridConfig.layout === 'auto'
@@ -76,14 +126,17 @@ export default function CctvPage() {
 
   return (
     <div
+      id="cctv-app"
       className="flex flex-col"
       style={{
-        height: '100dvh',
-        width: '100dvw',
-        background: 'oklch(0.04 0.003 200)',
+        height: 'calc(100dvh * var(--ui-zoom-inverse, 1))',
+        width: 'calc(100dvw * var(--ui-zoom-inverse, 1))',
+        background: palette.bg,
         overflow: 'hidden',
         position: 'fixed',
         inset: 0,
+        transform: 'scale(var(--ui-zoom, 1))',
+        transformOrigin: 'top left',
       }}
     >
       {/* Global CRT outer vignette */}
@@ -133,7 +186,7 @@ export default function CctvPage() {
             top: 0,
             right: 0,
             bottom: 0,
-            width: 320,
+            width: 360,
             zIndex: 300,
             display: 'flex',
             flexDirection: 'column',
@@ -194,7 +247,7 @@ export default function CctvPage() {
         <ControlPanel
           isFullscreen={isFullscreen}
           gridConfig={gridConfig}
-          onGridChange={setGridConfig}
+          onGridChange={handleGridChange}
           folderVideos={folderVideos}
           onFolderLoad={setFolderVideos}
           cameraCount={cameraCount}
