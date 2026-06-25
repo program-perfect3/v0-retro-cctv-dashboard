@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTheme, getCctvNow, type CameraSceneStyle, type ThemeSettings } from '@/lib/themeContext'
 
 interface TimestampOverlayProps {
@@ -47,6 +47,33 @@ const SCENE_COPY: Record<CameraSceneStyle, {
   },
 }
 
+type ClockSubscriber = () => void
+
+const clockSubscribers = new Set<ClockSubscriber>()
+let sharedClockTimer: number | null = null
+
+function ensureSharedClock() {
+  if (sharedClockTimer !== null) return
+
+  sharedClockTimer = window.setInterval(() => {
+    clockSubscribers.forEach((subscriber) => subscriber())
+  }, 1000)
+}
+
+function subscribeToSharedClock(subscriber: ClockSubscriber) {
+  clockSubscribers.add(subscriber)
+  ensureSharedClock()
+
+  return () => {
+    clockSubscribers.delete(subscriber)
+
+    if (clockSubscribers.size === 0 && sharedClockTimer !== null) {
+      window.clearInterval(sharedClockTimer)
+      sharedClockTimer = null
+    }
+  }
+}
+
 function getTimestampState(settings: ThemeSettings) {
   const now = getCctvNow(settings)
   const h = String(now.getHours()).padStart(2, '0')
@@ -71,15 +98,26 @@ export default function TimestampOverlay({
   showRec = true,
 }: TimestampOverlayProps) {
   const { palette, settings } = useTheme()
-  const [stamp, setStamp] = useState(() => getTimestampState(settings))
+  const dateRef = useRef<HTMLDivElement>(null)
+  const timeRef = useRef<HTMLDivElement>(null)
+  const frameRef = useRef<HTMLDivElement>(null)
   const scene = SCENE_COPY[settings.cameraSceneStyle]
+  const initialStamp = getTimestampState(settings)
 
   useEffect(() => {
-    const tick = () => setStamp(getTimestampState(settings))
-    tick()
-    const id = window.setInterval(tick, 1000)
-    return () => window.clearInterval(id)
-  }, [settings])
+    const writeStamp = () => {
+      const stamp = getTimestampState(settings)
+
+      if (dateRef.current) dateRef.current.textContent = stamp.date
+      if (timeRef.current) timeRef.current.textContent = stamp.time
+      if (frameRef.current) {
+        frameRef.current.textContent = `${scene.framePrefix}:${String(stamp.frameCount).padStart(2, '0')}`
+      }
+    }
+
+    writeStamp()
+    return subscribeToSharedClock(writeStamp)
+  }, [scene.framePrefix, settings])
 
   const labelStyle: React.CSSProperties = {
     background: scene.bg,
@@ -108,13 +146,13 @@ export default function TimestampOverlay({
       )}
 
       <div className="absolute bottom-2 left-2 z-20">
-        <div className="timestamp-overlay" style={{ background: scene.bg, padding: '1px 5px' }}>{stamp.date}</div>
+        <div ref={dateRef} className="timestamp-overlay" style={{ background: scene.bg, padding: '1px 5px' }}>{initialStamp.date}</div>
       </div>
 
       <div className="absolute bottom-2 right-2 z-20 text-right">
-        <div className="timestamp-overlay" style={{ background: scene.bg, padding: '1px 5px' }}>{stamp.time}</div>
-        <div className="timestamp-overlay" style={{ fontSize: '9px', color: palette.primaryDim, opacity: 0.7, background: scene.bg, padding: '1px 5px' }}>
-          {scene.framePrefix}:{String(stamp.frameCount).padStart(2, '0')}
+        <div ref={timeRef} className="timestamp-overlay" style={{ background: scene.bg, padding: '1px 5px' }}>{initialStamp.time}</div>
+        <div ref={frameRef} className="timestamp-overlay" style={{ fontSize: '9px', color: palette.primaryDim, opacity: 0.7, background: scene.bg, padding: '1px 5px' }}>
+          {scene.framePrefix}:{String(initialStamp.frameCount).padStart(2, '0')}
         </div>
       </div>
     </>
