@@ -101,7 +101,11 @@ export default function TimestampOverlay({
   const dateRef = useRef<HTMLDivElement>(null)
   const timeRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLDivElement>(null)
-  const scene = SCENE_COPY[settings.cameraSceneStyle]
+  const baseScene = SCENE_COPY[settings.cameraSceneStyle]
+  const scene = {
+    ...baseScene,
+    bg: palette.overlayBg || baseScene.bg,
+  }
   const initialStamp = getTimestampState(settings)
 
   useEffect(() => {

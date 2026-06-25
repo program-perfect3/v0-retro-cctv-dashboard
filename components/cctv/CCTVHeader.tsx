@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useTheme, getCctvNow } from '@/lib/themeContext'
+import { useTheme, getCctvNow, type ThemePalette } from '@/lib/themeContext'
 
 interface CCTVHeaderProps {
   isFullscreen: boolean
@@ -50,9 +50,11 @@ export default function CCTVHeader({
 
   const title = settings.customSystemTitle.trim() || t.systemTitle
   const subtitle = settings.customSystemSub.trim() || t.systemSub
+  const customPanelBg = settings.customColors.panelBackground || settings.customColors.cardBackground
 
-  const headerBackground =
-    settings.cameraSceneStyle === 'hq'
+  const headerBackground = customPanelBg
+    ? palette.panelBg
+    : settings.cameraSceneStyle === 'hq'
       ? 'linear-gradient(90deg, oklch(0.055 0.012 240), oklch(0.09 0.018 240))'
       : settings.cameraSceneStyle === 'police'
       ? 'linear-gradient(90deg, oklch(0.05 0.01 240), oklch(0.055 0.015 25))'
@@ -73,7 +75,7 @@ export default function CCTVHeader({
     >
       <div className="flex items-center gap-4">
         <div className="flex flex-col leading-none">
-          <span className="crt-text" style={{ fontSize: settings.cameraSceneStyle === 'privateHouse' ? '12px' : '14px', letterSpacing: '0.2em', fontWeight: 'bold' }}>
+          <span className="crt-text" style={{ fontSize: '14px', letterSpacing: '0.2em', fontWeight: 'bold' }}>
             {title}
           </span>
           <span style={{ fontSize: '8px', letterSpacing: '0.25em', color: palette.primaryDim }}>
@@ -156,9 +158,9 @@ function StatusPill({
   color: 'theme' | 'red'
   blink?: boolean
   glow?: boolean
-  palette: { primary: string; primaryDim: string; textGlow: string }
+  palette: ThemePalette
 }) {
-  const dotColor = color === 'red' ? 'oklch(0.7 0.22 25)' : palette.primary
+  const dotColor = color === 'red' ? palette.danger : palette.primary
   const inactiveColor = 'oklch(0.3 0.05 200)'
 
   return (

@@ -20,7 +20,9 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import VideoCell, { type CameraConfig } from './VideoCell'
 import CameraSettings from './CameraSettings'
-import { useTheme } from '@/lib/themeContext'
+import { CCTV_RESET_EVENT, useTheme } from '@/lib/themeContext'
+
+const CAMERA_SETTINGS_STORAGE_KEY = 'cctv.camera.settings.v1'
 
 const LOCATIONS = [
   'MAIN ENTRANCE', 'PARKING LOT A', 'SERVER ROOM', 'CORRIDOR B-4',
@@ -48,6 +50,60 @@ export interface GridConfig {
   layout: GridLayout
   cols: number
   rows: number
+}
+
+
+type PersistedCameraConfig = Pick<CameraConfig,
+  'id' | 'label' | 'location' | 'aspectRatio' | 'brightness' | 'contrast' | 'fisheye' | 'noiseIntensity'
+>
+
+const ASPECT_OPTIONS: CameraConfig['aspectRatio'][] = ['auto', '16/9', '4/3', '3/2', '1/1', '9/16']
+
+function serializeCameraSettings(cameras: CameraConfig[]): PersistedCameraConfig[] {
+  return cameras.map(({ id, label, location, aspectRatio, brightness, contrast, fisheye, noiseIntensity }) => ({
+    id,
+    label,
+    location,
+    aspectRatio,
+    brightness,
+    contrast,
+    fisheye,
+    noiseIntensity,
+  }))
+}
+
+function applyPersistedCameraSettings(defaults: CameraConfig[]): CameraConfig[] {
+  if (typeof window === 'undefined') return defaults
+
+  try {
+    const raw = window.localStorage.getItem(CAMERA_SETTINGS_STORAGE_KEY)
+    if (!raw) return defaults
+
+    const saved = JSON.parse(raw) as Partial<PersistedCameraConfig>[]
+    if (!Array.isArray(saved)) return defaults
+
+    const byId = new Map(saved.map((item) => [Number(item.id), item]))
+
+    return defaults.map((cam) => {
+      const item = byId.get(cam.id)
+      if (!item) return cam
+
+      return {
+        ...cam,
+        label: typeof item.label === 'string' ? item.label : cam.label,
+        location: typeof item.location === 'string' ? item.location : cam.location,
+        aspectRatio: ASPECT_OPTIONS.includes(item.aspectRatio as CameraConfig['aspectRatio'])
+          ? item.aspectRatio as CameraConfig['aspectRatio']
+          : cam.aspectRatio,
+        brightness: Number.isFinite(Number(item.brightness)) ? Math.max(40, Math.min(160, Number(item.brightness))) : cam.brightness,
+        contrast: Number.isFinite(Number(item.contrast)) ? Math.max(40, Math.min(200, Number(item.contrast))) : cam.contrast,
+        fisheye: typeof item.fisheye === 'boolean' ? item.fisheye : cam.fisheye,
+        noiseIntensity: Number.isFinite(Number(item.noiseIntensity)) ? Math.max(0, Math.min(100, Number(item.noiseIntensity))) : cam.noiseIntensity,
+      }
+    })
+  } catch {
+    return defaults
+  }
 }
 
 function getAutoGrid(count: number): { cols: number; rows: number } {
@@ -155,7 +211,7 @@ export default function CCTVGrid({
   globalGridConfig,
   cameraCount,
 }: CCTVGridProps) {
-  const { settings } = useTheme()
+  const { settings, palette } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [lowPowerDevice, setLowPowerDevice] = useState(false)
   const [cameras, setCameras] = useState<CameraConfig[]>(() =>
@@ -163,6 +219,7 @@ export default function CCTVGrid({
   )
   const [openSettings, setOpenSettings] = useState<number | null>(null)
   const objectUrlCacheRef = useRef<Map<File, string>>(new Map())
+  const cameraSettingsHydratedRef = useRef(false)
 
   useEffect(() => {
     setMounted(true)
@@ -190,6 +247,27 @@ export default function CCTVGrid({
       objectUrlCacheRef.current.forEach((url) => URL.revokeObjectURL(url))
       objectUrlCacheRef.current.clear()
     }
+  }, [])
+
+  useEffect(() => {
+    setCameras(applyPersistedCameraSettings(Array.from({ length: 64 }, (_, i) => makeDefaultCamera(i + 1))))
+    cameraSettingsHydratedRef.current = true
+  }, [])
+
+  useEffect(() => {
+    if (!cameraSettingsHydratedRef.current) return
+    window.localStorage.setItem(CAMERA_SETTINGS_STORAGE_KEY, JSON.stringify(serializeCameraSettings(cameras)))
+  }, [cameras])
+
+  useEffect(() => {
+    const resetCameraSettings = () => {
+      window.localStorage.removeItem(CAMERA_SETTINGS_STORAGE_KEY)
+      setOpenSettings(null)
+      setCameras(Array.from({ length: 64 }, (_, i) => makeDefaultCamera(i + 1)))
+    }
+
+    window.addEventListener(CCTV_RESET_EVENT, resetCameraSettings)
+    return () => window.removeEventListener(CCTV_RESET_EVENT, resetCameraSettings)
   }, [])
 
   const sensors = useSensors(
@@ -275,7 +353,7 @@ export default function CCTVGrid({
     gap: `${settings.gridGap}px`,
     width: '100%',
     height: '100%',
-    background: 'oklch(0.025 0.002 200)',
+    background: palette.gridBg,
   }
 
   if (!mounted) {
