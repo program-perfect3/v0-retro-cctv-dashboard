@@ -60,6 +60,10 @@ function getAutoGrid(count: number): { cols: number; rows: number } {
   return { cols: 4, rows: 4 }
 }
 
+interface NavigatorWithMemory extends Navigator {
+  deviceMemory?: number
+}
+
 interface SortableCellProps {
   config: CameraConfig
   isFullscreen: boolean
@@ -166,7 +170,8 @@ export default function CCTVGrid({
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
     const updateLowPowerDevice = () => {
       const cores = navigator.hardwareConcurrency ?? 8
-      setLowPowerDevice(cores <= 4 || mediaQuery.matches)
+      const memory = (navigator as NavigatorWithMemory).deviceMemory ?? 8
+      setLowPowerDevice(cores <= 6 || memory <= 4 || mediaQuery.matches)
     }
 
     updateLowPowerDevice()
@@ -197,24 +202,30 @@ export default function CCTVGrid({
     : { cols: globalGridConfig.cols, rows: globalGridConfig.rows }
 
   const totalCells = cols * rows
-  const performanceMode = totalCells >= 9 || lowPowerDevice
+  const performanceMode = lowPowerDevice || totalCells >= 9
 
   useEffect(() => {
     const cache = objectUrlCacheRef.current
-    const visibleFiles = folderVideos.slice(0, totalCells)
-    const visibleFileSet = new Set(visibleFiles)
+    const currentFileSet = new Set(folderVideos)
+    const urlsToRevokeLater: string[] = []
 
     for (const [file, url] of cache) {
-      if (!visibleFileSet.has(file)) {
-        URL.revokeObjectURL(url)
+      if (!currentFileSet.has(file)) {
         cache.delete(file)
+        urlsToRevokeLater.push(url)
       }
+    }
+
+    if (urlsToRevokeLater.length > 0) {
+      window.setTimeout(() => {
+        urlsToRevokeLater.forEach((url) => URL.revokeObjectURL(url))
+      }, 3000)
     }
 
     setCameras((prev) => {
       let changed = false
       const next = prev.map((cam, i) => {
-        const file = i < totalCells ? visibleFiles[i] ?? null : null
+        const file = i < totalCells ? folderVideos[i] ?? null : null
         let videoUrl: string | null = null
 
         if (file) {

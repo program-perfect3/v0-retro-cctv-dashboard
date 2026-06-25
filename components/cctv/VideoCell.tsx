@@ -27,6 +27,11 @@ interface VideoCellProps {
   performanceMode?: boolean
 }
 
+type IdleWindow = Window & typeof globalThis & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+  cancelIdleCallback?: (handle: number) => void
+}
+
 const AR_MAP: Record<AspectRatioOption, [number, number] | null> = {
   'auto': null,
   '16/9': [16, 9],
@@ -93,6 +98,13 @@ const SCENE_LOOK: Record<CameraSceneStyle, {
   },
 }
 
+function getVideoStartDelay(id: number, performanceMode: boolean) {
+  const index = Math.max(0, id - 1)
+  return performanceMode
+    ? Math.min(index * 180, 2200)
+    : Math.min(index * 45, 360)
+}
+
 export default function VideoCell({ config, isFullscreen, onConfigChange, performanceMode = false }: VideoCellProps) {
   const { settings, palette } = useTheme()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -101,6 +113,8 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
   const [glitchActive, setGlitchActive] = useState(false)
   const [glitchStyle, setGlitchStyle] = useState<React.CSSProperties>({})
   const [cellSize, setCellSize] = useState<{ w: number; h: number } | null>(null)
+
+  void onConfigChange
 
   const visualEffectsEnabled = !performanceMode
   const scene = SCENE_LOOK[settings.cameraSceneStyle]
@@ -113,6 +127,8 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
 
     let cancelled = false
     let playTimer: number | null = null
+    let idleHandle: number | null = null
+    const idleWindow = window as IdleWindow
 
     v.muted = true
     v.defaultMuted = true
@@ -120,20 +136,42 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
     v.playsInline = true
     v.controls = false
     v.disablePictureInPicture = true
-
-    const playVideo = () => {
-      if (cancelled || document.hidden) return
-      void v.play().catch(() => {})
-    }
+    v.preload = performanceMode ? 'none' : 'metadata'
 
     const markLoaded = () => {
+      if (!cancelled) setLoaded(true)
+    }
+
+    const startPlayback = () => {
+      if (cancelled || document.hidden || !v.isConnected) return
+
+      if (v.readyState === HTMLMediaElement.HAVE_NOTHING) {
+        v.load()
+      }
+
+      void v.play().then(markLoaded).catch(() => {
+        // Autoplay can still be blocked in embedded previews. Keep UI alive.
+      })
+    }
+
+    const requestIdleStart = () => {
       if (cancelled) return
-      setLoaded(true)
-      playVideo()
+
+      if (performanceMode && typeof idleWindow.requestIdleCallback === 'function') {
+        idleHandle = idleWindow.requestIdleCallback(startPlayback, { timeout: 1200 })
+        return
+      }
+
+      startPlayback()
+    }
+
+    const schedulePlayback = (delay = getVideoStartDelay(config.id, performanceMode)) => {
+      if (playTimer !== null) window.clearTimeout(playTimer)
+      playTimer = window.setTimeout(requestIdleStart, delay)
     }
 
     const handleVisibilityChange = () => {
-      if (!document.hidden) playVideo()
+      if (!document.hidden && v.paused) schedulePlayback(50)
     }
 
     v.addEventListener('loadeddata', markLoaded)
@@ -141,30 +179,57 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
     v.addEventListener('playing', markLoaded)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
-    playTimer = window.setTimeout(playVideo, 0)
+    schedulePlayback()
 
     return () => {
       cancelled = true
       if (playTimer !== null) window.clearTimeout(playTimer)
+      if (idleHandle !== null && typeof idleWindow.cancelIdleCallback === 'function') {
+        idleWindow.cancelIdleCallback(idleHandle)
+      }
       v.removeEventListener('loadeddata', markLoaded)
       v.removeEventListener('canplay', markLoaded)
       v.removeEventListener('playing', markLoaded)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       v.pause()
     }
-  }, [config.videoUrl])
+  }, [config.id, config.videoUrl, performanceMode])
 
   useEffect(() => {
+    if (config.aspectRatio === 'auto') {
+      setCellSize(null)
+      return
+    }
+
     const el = cellRef.current
     if (!el) return
+
+    let raf = 0
+    const writeSize = (w: number, h: number) => {
+      const next = { w: Math.round(w), h: Math.round(h) }
+      setCellSize((prev) => (prev?.w === next.w && prev?.h === next.h ? prev : next))
+    }
+
+    writeSize(el.clientWidth, el.clientHeight)
+
     const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setCellSize({ w: entry.contentRect.width, h: entry.contentRect.height })
-      }
+      const entry = entries[0]
+      if (!entry) return
+
+      if (raf) window.cancelAnimationFrame(raf)
+      const { width, height } = entry.contentRect
+      raf = window.requestAnimationFrame(() => {
+        raf = 0
+        writeSize(width, height)
+      })
     })
+
     ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
+  }, [config.aspectRatio])
 
   useEffect(() => {
     if (!visualEffectsEnabled || settings.cameraSceneStyle === 'hq' || settings.cameraSceneStyle === 'privateHouse') return
@@ -282,20 +347,13 @@ export default function VideoCell({ config, isFullscreen, onConfigChange, perfor
             <video
               ref={videoRef}
               src={config.videoUrl ?? undefined}
-              autoPlay
               loop
               muted
               defaultMuted
               playsInline
-              preload={performanceMode ? 'metadata' : 'auto'}
+              preload={performanceMode ? 'none' : 'metadata'}
               disablePictureInPicture
               controls={false}
-              onLoadedData={() => setLoaded(true)}
-              onCanPlay={() => {
-                setLoaded(true)
-                void videoRef.current?.play().catch(() => {})
-              }}
-              onPlaying={() => setLoaded(true)}
               onError={() => setLoaded(false)}
               className={`absolute inset-0 w-full h-full ${loaded ? 'video-fade-in' : 'opacity-0'}`}
               style={{
