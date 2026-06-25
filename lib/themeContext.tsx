@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 // ----------------------------------------------------------------
 // Types
@@ -9,16 +9,33 @@ export type ThemeColor = 'green' | 'amber' | 'red' | 'blue' | 'white'
 export type Locale = 'en' | 'ru'
 export type CameraSceneStyle = 'guard' | 'hq' | 'police' | 'privateHouse'
 
+export type CustomColorKey =
+  | 'primary'
+  | 'primaryDim'
+  | 'primaryFaint'
+  | 'background'
+  | 'panelBackground'
+  | 'cardBackground'
+  | 'border'
+  | 'borderDim'
+  | 'danger'
+  | 'gridBackground'
+  | 'cameraBackground'
+  | 'overlayBackground'
+
+export type CustomColors = Record<CustomColorKey, string>
+
 export interface ThemeSettings {
   color: ThemeColor
-  textScale: number        // 80 – 130 (%)
+  textScale: number        // 70 – 170 (%)
+  uiScale: number          // 75 – 150 (%)
   scanlines: boolean
   noise: boolean
   glow: boolean
   flicker: boolean
   vignette: boolean
   locale: Locale
-  gridGap: number          // 0 – 6 px
+  gridGap: number          // 0 – 12 px
   timestampVisible: boolean
   clockBaseTimeMs: number | null
   clockBaseRealMs: number | null
@@ -31,11 +48,51 @@ export interface ThemeSettings {
   showBottomPanel: boolean
   showTicker: boolean
   showStatusPills: boolean
+  customColors: CustomColors
 }
 
-const DEFAULTS: ThemeSettings = {
+export interface ThemePalette {
+  hue: number
+  label: string
+  labelRu: string
+  primary: string
+  primaryDim: string
+  primaryFaint: string
+  bg: string
+  panelBg: string
+  bgCard: string
+  border: string
+  borderDim: string
+  textGlow: string
+  amberHue: number
+  danger: string
+  gridBg: string
+  cameraBg: string
+  overlayBg: string
+}
+
+export const CCTV_THEME_STORAGE_KEY = 'cctv.theme.settings.v2'
+export const CCTV_RESET_EVENT = 'cctv:reset-all'
+
+export const DEFAULT_CUSTOM_COLORS: CustomColors = {
+  primary: '',
+  primaryDim: '',
+  primaryFaint: '',
+  background: '',
+  panelBackground: '',
+  cardBackground: '',
+  border: '',
+  borderDim: '',
+  danger: '',
+  gridBackground: '',
+  cameraBackground: '',
+  overlayBackground: '',
+}
+
+export const DEFAULT_THEME_SETTINGS: ThemeSettings = {
   color: 'green',
   textScale: 100,
+  uiScale: 100,
   scanlines: true,
   noise: true,
   glow: true,
@@ -55,6 +112,81 @@ const DEFAULTS: ThemeSettings = {
   showBottomPanel: true,
   showTicker: true,
   showStatusPills: true,
+  customColors: DEFAULT_CUSTOM_COLORS,
+}
+
+const COLORS: ThemeColor[] = ['green', 'amber', 'red', 'blue', 'white']
+const LOCALES: Locale[] = ['en', 'ru']
+const SCENES: CameraSceneStyle[] = ['guard', 'hq', 'police', 'privateHouse']
+
+const clamp = (value: unknown, min: number, max: number, fallback: number) => {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return fallback
+  return Math.max(min, Math.min(max, n))
+}
+
+const stringOr = (value: unknown, fallback = '') => (typeof value === 'string' ? value : fallback)
+const boolOr = (value: unknown, fallback: boolean) => (typeof value === 'boolean' ? value : fallback)
+
+function sanitizeCustomColors(value: unknown): CustomColors {
+  const raw = value && typeof value === 'object' ? value as Partial<Record<CustomColorKey, unknown>> : {}
+  return {
+    primary: stringOr(raw.primary),
+    primaryDim: stringOr(raw.primaryDim),
+    primaryFaint: stringOr(raw.primaryFaint),
+    background: stringOr(raw.background),
+    panelBackground: stringOr(raw.panelBackground),
+    cardBackground: stringOr(raw.cardBackground),
+    border: stringOr(raw.border),
+    borderDim: stringOr(raw.borderDim),
+    danger: stringOr(raw.danger),
+    gridBackground: stringOr(raw.gridBackground),
+    cameraBackground: stringOr(raw.cameraBackground),
+    overlayBackground: stringOr(raw.overlayBackground),
+  }
+}
+
+function sanitizeSettings(value: unknown): ThemeSettings {
+  const raw = value && typeof value === 'object' ? value as Partial<ThemeSettings> : {}
+
+  return {
+    ...DEFAULT_THEME_SETTINGS,
+    color: COLORS.includes(raw.color as ThemeColor) ? raw.color as ThemeColor : DEFAULT_THEME_SETTINGS.color,
+    textScale: clamp(raw.textScale, 70, 170, DEFAULT_THEME_SETTINGS.textScale),
+    uiScale: clamp(raw.uiScale, 75, 150, DEFAULT_THEME_SETTINGS.uiScale),
+    scanlines: boolOr(raw.scanlines, DEFAULT_THEME_SETTINGS.scanlines),
+    noise: boolOr(raw.noise, DEFAULT_THEME_SETTINGS.noise),
+    glow: boolOr(raw.glow, DEFAULT_THEME_SETTINGS.glow),
+    flicker: boolOr(raw.flicker, DEFAULT_THEME_SETTINGS.flicker),
+    vignette: boolOr(raw.vignette, DEFAULT_THEME_SETTINGS.vignette),
+    locale: LOCALES.includes(raw.locale as Locale) ? raw.locale as Locale : DEFAULT_THEME_SETTINGS.locale,
+    gridGap: clamp(raw.gridGap, 0, 12, DEFAULT_THEME_SETTINGS.gridGap),
+    timestampVisible: boolOr(raw.timestampVisible, DEFAULT_THEME_SETTINGS.timestampVisible),
+    clockBaseTimeMs: typeof raw.clockBaseTimeMs === 'number' ? raw.clockBaseTimeMs : null,
+    clockBaseRealMs: typeof raw.clockBaseRealMs === 'number' ? raw.clockBaseRealMs : null,
+    cameraSceneStyle: SCENES.includes(raw.cameraSceneStyle as CameraSceneStyle) ? raw.cameraSceneStyle as CameraSceneStyle : DEFAULT_THEME_SETTINGS.cameraSceneStyle,
+    customSystemTitle: stringOr(raw.customSystemTitle),
+    customSystemSub: stringOr(raw.customSystemSub),
+    customPanelTitle: stringOr(raw.customPanelTitle),
+    customPanelVer: stringOr(raw.customPanelVer),
+    showTopPanel: boolOr(raw.showTopPanel, DEFAULT_THEME_SETTINGS.showTopPanel),
+    showBottomPanel: boolOr(raw.showBottomPanel, DEFAULT_THEME_SETTINGS.showBottomPanel),
+    showTicker: boolOr(raw.showTicker, DEFAULT_THEME_SETTINGS.showTicker),
+    showStatusPills: boolOr(raw.showStatusPills, DEFAULT_THEME_SETTINGS.showStatusPills),
+    customColors: sanitizeCustomColors(raw.customColors),
+  }
+}
+
+function readStoredSettings(): ThemeSettings {
+  if (typeof window === 'undefined') return DEFAULT_THEME_SETTINGS
+
+  try {
+    const raw = window.localStorage.getItem(CCTV_THEME_STORAGE_KEY)
+    if (!raw) return DEFAULT_THEME_SETTINGS
+    return sanitizeSettings(JSON.parse(raw))
+  } catch {
+    return DEFAULT_THEME_SETTINGS
+  }
 }
 
 export function getCctvNow(settings: ThemeSettings) {
@@ -67,20 +199,7 @@ export function getCctvNow(settings: ThemeSettings) {
 // ----------------------------------------------------------------
 // Colour palettes for each theme
 // ----------------------------------------------------------------
-export const THEME_PALETTES: Record<ThemeColor, {
-  hue: number
-  label: string
-  labelRu: string
-  primary: string
-  primaryDim: string
-  primaryFaint: string
-  bg: string
-  bgCard: string
-  border: string
-  borderDim: string
-  textGlow: string
-  amberHue: number
-}> = {
+export const THEME_PALETTES: Record<ThemeColor, ThemePalette> = {
   green: {
     hue: 145,
     label: 'PHOSPHOR GREEN',
@@ -89,11 +208,16 @@ export const THEME_PALETTES: Record<ThemeColor, {
     primaryDim:   'oklch(0.48 0.10 145)',
     primaryFaint: 'oklch(0.25 0.05 145)',
     bg:           'oklch(0.045 0.004 200)',
+    panelBg:      'oklch(0.045 0.004 200)',
     bgCard:       'oklch(0.07 0.005 200)',
     border:       'oklch(0.28 0.07 145)',
     borderDim:    'oklch(0.18 0.04 145)',
     textGlow:     '0 0 6px oklch(0.72 0.22 145 / 0.7), 0 0 14px oklch(0.55 0.22 145 / 0.35)',
     amberHue:     75,
+    danger:       'oklch(0.7 0.22 25)',
+    gridBg:       'oklch(0.025 0.002 200)',
+    cameraBg:     '',
+    overlayBg:    '',
   },
   amber: {
     hue: 75,
@@ -103,11 +227,16 @@ export const THEME_PALETTES: Record<ThemeColor, {
     primaryDim:   'oklch(0.5 0.1 75)',
     primaryFaint: 'oklch(0.28 0.05 75)',
     bg:           'oklch(0.045 0.004 60)',
+    panelBg:      'oklch(0.045 0.004 60)',
     bgCard:       'oklch(0.07 0.005 60)',
     border:       'oklch(0.3 0.08 75)',
     borderDim:    'oklch(0.2 0.05 75)',
     textGlow:     '0 0 6px oklch(0.78 0.2 75 / 0.7), 0 0 14px oklch(0.6 0.2 75 / 0.35)',
     amberHue:     75,
+    danger:       'oklch(0.7 0.22 25)',
+    gridBg:       'oklch(0.025 0.002 60)',
+    cameraBg:     '',
+    overlayBg:    '',
   },
   red: {
     hue: 25,
@@ -117,11 +246,16 @@ export const THEME_PALETTES: Record<ThemeColor, {
     primaryDim:   'oklch(0.45 0.12 25)',
     primaryFaint: 'oklch(0.25 0.06 25)',
     bg:           'oklch(0.045 0.005 20)',
+    panelBg:      'oklch(0.045 0.005 20)',
     bgCard:       'oklch(0.07 0.006 20)',
     border:       'oklch(0.28 0.09 25)',
     borderDim:    'oklch(0.18 0.05 25)',
     textGlow:     '0 0 6px oklch(0.68 0.22 25 / 0.7), 0 0 14px oklch(0.5 0.22 25 / 0.35)',
     amberHue:     40,
+    danger:       'oklch(0.72 0.24 25)',
+    gridBg:       'oklch(0.025 0.002 20)',
+    cameraBg:     '',
+    overlayBg:    '',
   },
   blue: {
     hue: 240,
@@ -131,11 +265,16 @@ export const THEME_PALETTES: Record<ThemeColor, {
     primaryDim:   'oklch(0.45 0.1 240)',
     primaryFaint: 'oklch(0.25 0.05 240)',
     bg:           'oklch(0.045 0.005 240)',
+    panelBg:      'oklch(0.045 0.005 240)',
     bgCard:       'oklch(0.07 0.006 240)',
     border:       'oklch(0.28 0.07 240)',
     borderDim:    'oklch(0.18 0.04 240)',
     textGlow:     '0 0 6px oklch(0.68 0.18 240 / 0.7), 0 0 14px oklch(0.5 0.18 240 / 0.35)',
     amberHue:     210,
+    danger:       'oklch(0.7 0.22 25)',
+    gridBg:       'oklch(0.025 0.002 240)',
+    cameraBg:     '',
+    overlayBg:    '',
   },
   white: {
     hue: 200,
@@ -145,12 +284,44 @@ export const THEME_PALETTES: Record<ThemeColor, {
     primaryDim:   'oklch(0.55 0.015 200)',
     primaryFaint: 'oklch(0.28 0.01 200)',
     bg:           'oklch(0.04 0.002 200)',
+    panelBg:      'oklch(0.04 0.002 200)',
     bgCard:       'oklch(0.08 0.003 200)',
     border:       'oklch(0.32 0.02 200)',
     borderDim:    'oklch(0.2 0.01 200)',
     textGlow:     '0 0 4px oklch(0.82 0.02 200 / 0.5)',
     amberHue:     200,
+    danger:       'oklch(0.7 0.22 25)',
+    gridBg:       'oklch(0.025 0.002 200)',
+    cameraBg:     '',
+    overlayBg:    '',
   },
+}
+
+export function resolvePalette(settings: ThemeSettings): ThemePalette {
+  const base = THEME_PALETTES[settings.color]
+  const c = settings.customColors
+  const primary = c.primary || base.primary
+  const primaryDim = c.primaryDim || base.primaryDim
+  const primaryFaint = c.primaryFaint || base.primaryFaint
+
+  return {
+    ...base,
+    primary,
+    primaryDim,
+    primaryFaint,
+    bg: c.background || base.bg,
+    panelBg: c.panelBackground || c.background || base.panelBg,
+    bgCard: c.cardBackground || base.bgCard,
+    border: c.border || base.border,
+    borderDim: c.borderDim || base.borderDim,
+    danger: c.danger || base.danger,
+    gridBg: c.gridBackground || base.gridBg,
+    cameraBg: c.cameraBackground || base.cameraBg,
+    overlayBg: c.overlayBackground || base.overlayBg,
+    textGlow: c.primary
+      ? `0 0 6px ${primary}, 0 0 14px ${primaryDim}`
+      : base.textGlow,
+  }
 }
 
 // ----------------------------------------------------------------
@@ -283,20 +454,21 @@ export type TranslationKey = keyof typeof TRANSLATIONS['en']
 // Context
 // ----------------------------------------------------------------
 type AnyTranslation = typeof TRANSLATIONS[keyof typeof TRANSLATIONS]
-type AnyPalette = typeof THEME_PALETTES[keyof typeof THEME_PALETTES]
 
 interface ThemeContextValue {
   settings: ThemeSettings
   update: (patch: Partial<ThemeSettings>) => void
+  resetSettings: () => void
   t: AnyTranslation
-  palette: AnyPalette
+  palette: ThemePalette
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  settings: DEFAULTS,
+  settings: DEFAULT_THEME_SETTINGS,
   update: () => {},
+  resetSettings: () => {},
   t: TRANSLATIONS.en as AnyTranslation,
-  palette: THEME_PALETTES.green as AnyPalette,
+  palette: THEME_PALETTES.green,
 })
 
 export function useTheme() {
@@ -304,25 +476,51 @@ export function useTheme() {
 }
 
 // ----------------------------------------------------------------
-// Provider — applies CSS vars to :root on every change
+// Provider — applies CSS vars and persists settings locally
 // ----------------------------------------------------------------
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<ThemeSettings>(DEFAULTS)
+  const [settings, setSettings] = useState<ThemeSettings>(DEFAULT_THEME_SETTINGS)
+  const hydratedRef = useRef(false)
 
-  const update = (patch: Partial<ThemeSettings>) =>
-    setSettings((s) => ({ ...s, ...patch }))
+  useEffect(() => {
+    hydratedRef.current = true
+    setSettings(readStoredSettings())
+  }, [])
 
-  const palette: AnyPalette = THEME_PALETTES[settings.color]
+  const update = useCallback((patch: Partial<ThemeSettings>) => {
+    setSettings((s) => sanitizeSettings({ ...s, ...patch }))
+  }, [])
+
+  const resetSettings = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(CCTV_THEME_STORAGE_KEY)
+      window.dispatchEvent(new CustomEvent(CCTV_RESET_EVENT))
+    }
+    setSettings(DEFAULT_THEME_SETTINGS)
+  }, [])
+
+  const palette = useMemo(() => resolvePalette(settings), [settings])
   const t: AnyTranslation = TRANSLATIONS[settings.locale]
 
   useEffect(() => {
+    if (!hydratedRef.current || typeof window === 'undefined') return
+    window.localStorage.setItem(CCTV_THEME_STORAGE_KEY, JSON.stringify(settings))
+  }, [settings])
+
+  useEffect(() => {
     const root = document.documentElement
+    const textScale = settings.textScale / 100
+    const uiScale = settings.uiScale / 100
+    const uiZoom = textScale * uiScale
+    const uiZoomInverse = uiZoom > 0 ? 1 / uiZoom : 1
+
     root.style.setProperty('--background',        palette.bg)
     root.style.setProperty('--foreground',        palette.primary)
     root.style.setProperty('--card',              palette.bgCard)
     root.style.setProperty('--card-foreground',   palette.primary)
     root.style.setProperty('--primary',           palette.primary)
     root.style.setProperty('--border',            palette.border)
+    root.style.setProperty('--panel',             palette.panelBg)
     root.style.setProperty('--panel-border',      palette.border)
     root.style.setProperty('--crt-green',         palette.primary)
     root.style.setProperty('--muted-foreground',  palette.primaryDim)
@@ -330,14 +528,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     root.style.setProperty('--input',             palette.bgCard)
     root.style.setProperty('--secondary',         palette.bgCard)
     root.style.setProperty('--muted',             palette.bgCard)
+    root.style.setProperty('--destructive',       palette.danger)
     root.style.setProperty('--crt-text-glow',     palette.textGlow)
     root.style.setProperty('--theme-text-scale',  `${settings.textScale}%`)
+    root.style.setProperty('--text-scale',        String(textScale))
+    root.style.setProperty('--ui-scale',          String(uiScale))
+    root.style.setProperty('--ui-zoom',           String(uiZoom))
+    root.style.setProperty('--ui-zoom-inverse',   String(uiZoomInverse))
     root.style.setProperty('--grid-gap',          `${settings.gridGap}px`)
+    root.style.setProperty('--grid-bg',           palette.gridBg)
+    root.style.setProperty('--camera-bg',         palette.cameraBg || 'transparent')
+    root.style.setProperty('--overlay-bg',        palette.overlayBg || 'rgba(0,0,0,0.42)')
     root.dataset.cameraStyle = settings.cameraSceneStyle
-  }, [settings.color, settings.textScale, settings.gridGap, settings.cameraSceneStyle, palette])
+  }, [settings, palette])
 
   return (
-    <ThemeContext.Provider value={{ settings, update, t, palette }}>
+    <ThemeContext.Provider value={{ settings, update, resetSettings, t, palette }}>
       {children}
     </ThemeContext.Provider>
   )

@@ -632,3 +632,46 @@ input[type="range"]::-moz-range-thumb {
 [data-performance-mode="true"] .cctv-btn {
   transition: none;
 }
+
+/* ============================================================
+   SETTINGS / CUSTOMIZATION PATCH
+   Append this block to app/globals.css.
+   ============================================================ */
+
+:root {
+  --text-scale: 1;
+  --ui-scale: 1;
+  --ui-zoom: 1;
+  --grid-bg: oklch(0.025 0.002 200);
+  --camera-bg: transparent;
+  --overlay-bg: rgba(0, 0, 0, 0.42);
+}
+
+/* The app wrapper in app/page.tsx uses --ui-zoom to scale the whole UI
+   while keeping the viewport filled. This makes the size sliders actually visible. */
+#cctv-app {
+  font-size: calc(16px * var(--text-scale, 1));
+}
+
+#cctv-app .timestamp-overlay {
+  font-size: calc(11px * var(--text-scale, 1));
+}
+
+#cctv-app .cam-label,
+#cctv-app .cctv-btn,
+#cctv-app .cctv-input,
+#cctv-app .cctv-select,
+#cctv-app .panel-section-title {
+  font-size: calc(1em * var(--text-scale, 1));
+}
+
+.cctv-range {
+  width: 100%;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.cctv-range:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 2px;
+}
